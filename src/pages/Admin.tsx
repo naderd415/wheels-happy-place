@@ -51,7 +51,7 @@ const Admin = () => {
   const [locationUrl, setLocationUrl] = useState("");
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   const [siteType, setSiteType] = useState("both");
-  const [heroProductId, setHeroProductId] = useState("");
+  const [heroProductId, setHeroProductId] = useState("none");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -90,7 +90,7 @@ const Admin = () => {
       setLocationUrl((settings as any).location_url || "");
       setGoogleDriveUrl((settings as any).google_drive_url || "");
       setSiteType((settings as any).site_type || "both");
-      setHeroProductId((settings as any).hero_product_id || "");
+      setHeroProductId((settings as any).hero_product_id || "none");
     }
   }, [settings]);
 
@@ -126,7 +126,7 @@ const Admin = () => {
         location_url: locationUrl,
         google_drive_url: googleDriveUrl,
         site_type: siteType,
-        hero_product_id: heroProductId || null,
+        hero_product_id: heroProductId === "none" ? null : heroProductId,
       } as any)
       .eq("id", settings.id);
 
@@ -365,7 +365,7 @@ const Admin = () => {
                       <SelectValue placeholder="اختر المنتج الرئيسي" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">بدون</SelectItem>
+                      <SelectItem value="none">بدون</SelectItem>
                       {products?.map((p) => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
