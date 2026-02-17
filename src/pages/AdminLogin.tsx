@@ -19,14 +19,24 @@ const AdminLogin = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedEmail = localStorage.getItem("admin_email");
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setIsSetup(false);
-    } else {
-      setIsSetup(true);
-    }
-    setCheckingAdmin(false);
+    const checkExistingAdmin = async () => {
+      // Check if admin already exists in the database
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("role", "admin")
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        // Admin exists, show login form
+        setIsSetup(false);
+      } else {
+        // No admin, show setup form
+        setIsSetup(true);
+      }
+      setCheckingAdmin(false);
+    };
+    checkExistingAdmin();
   }, []);
 
   useEffect(() => {
@@ -55,10 +65,10 @@ const AdminLogin = () => {
         return;
       }
 
-      localStorage.setItem("admin_email", email);
       const { error: signInError } = await signIn(email, password);
       if (signInError) {
         toast({ title: "تم إنشاء الحساب", description: "سجل دخولك الآن" });
+        setIsSetup(false);
       }
     } catch (err: any) {
       toast({ title: "خطأ", description: err.message, variant: "destructive" });
@@ -68,14 +78,14 @@ const AdminLogin = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) return;
     setLoading(true);
-    const loginEmail = localStorage.getItem("admin_email") || email;
-    const { error } = await signIn(loginEmail, password);
+    const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
       toast({
         title: "خطأ في تسجيل الدخول",
-        description: "كلمة المرور غير صحيحة",
+        description: "البريد أو كلمة المرور غير صحيحة",
         variant: "destructive",
       });
     }
@@ -105,21 +115,19 @@ const AdminLogin = () => {
         </div>
 
         <form onSubmit={isSetup ? handleSetup : handleLogin} className="space-y-4">
-          {isSetup && (
-            <div className="space-y-2">
-              <Label htmlFor="email">البريد الإلكتروني</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-secondary border-border"
-                dir="ltr"
-                placeholder="admin@example.com"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="email">البريد الإلكتروني</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="bg-secondary border-border"
+              dir="ltr"
+              placeholder="admin@example.com"
+            />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">كلمة المرور</Label>
@@ -147,7 +155,6 @@ const AdminLogin = () => {
         {!isSetup && (
           <button
             onClick={() => {
-              localStorage.removeItem("admin_email");
               setIsSetup(true);
               setEmail("");
             }}
