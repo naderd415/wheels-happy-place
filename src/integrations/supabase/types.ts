@@ -201,6 +201,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      track_visit: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

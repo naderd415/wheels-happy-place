@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Globe } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import type { Tables } from "@/integrations/supabase/types";
@@ -28,16 +28,34 @@ const Admin = () => {
   const { data: categories } = useCategories();
   const { data: settings } = useSiteSettings();
 
+  // Visitor stats
+  const { data: stats } = useQuery({
+    queryKey: ["visitor-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("visitor_stats")
+        .select("*")
+        .order("date", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Site settings state
   const [siteName, setSiteName] = useState("");
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [address, setAddress] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
+  const [googleDriveUrl, setGoogleDriveUrl] = useState("");
+  const [siteType, setSiteType] = useState("both");
+  const [heroProductId, setHeroProductId] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Password change state
+  // Password state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
@@ -50,6 +68,7 @@ const Admin = () => {
   const [pPrice, setPPrice] = useState("");
   const [pOriginalPrice, setPOriginalPrice] = useState("");
   const [pCategoryId, setPCategoryId] = useState("");
+  const [pTier, setPTier] = useState("mid");
   const [pAvailable, setPAvailable] = useState(true);
   const [pSpecs, setPSpecs] = useState("");
   const [pImageFile, setPImageFile] = useState<File | null>(null);
@@ -68,6 +87,10 @@ const Admin = () => {
       setWhatsapp(settings.whatsapp || "");
       setAddress(settings.address || "");
       setFacebookUrl(settings.facebook_url || "");
+      setLocationUrl((settings as any).location_url || "");
+      setGoogleDriveUrl((settings as any).google_drive_url || "");
+      setSiteType((settings as any).site_type || "both");
+      setHeroProductId((settings as any).hero_product_id || "");
     }
   }, [settings]);
 
@@ -100,7 +123,11 @@ const Admin = () => {
         address,
         facebook_url: facebookUrl,
         logo_url: logoUrl,
-      })
+        location_url: locationUrl,
+        google_drive_url: googleDriveUrl,
+        site_type: siteType,
+        hero_product_id: heroProductId || null,
+      } as any)
       .eq("id", settings.id);
 
     setSavingSettings(false);
@@ -114,14 +141,8 @@ const Admin = () => {
 
   const openAddProduct = () => {
     setEditingProduct(null);
-    setPName("");
-    setPDescription("");
-    setPPrice("");
-    setPOriginalPrice("");
-    setPCategoryId("");
-    setPAvailable(true);
-    setPSpecs("");
-    setPImageFile(null);
+    setPName(""); setPDescription(""); setPPrice(""); setPOriginalPrice("");
+    setPCategoryId(""); setPTier("mid"); setPAvailable(true); setPSpecs(""); setPImageFile(null);
     setDialogOpen(true);
   };
 
@@ -132,6 +153,7 @@ const Admin = () => {
     setPPrice(String(product.price));
     setPOriginalPrice(product.original_price ? String(product.original_price) : "");
     setPCategoryId(product.category_id || "");
+    setPTier((product as any).tier || "mid");
     setPAvailable(product.is_available);
     setPSpecs(product.specs ? JSON.stringify(product.specs, null, 2) : "");
     setPImageFile(null);
@@ -163,21 +185,20 @@ const Admin = () => {
 
     let specs = {};
     if (pSpecs.trim()) {
-      try {
-        specs = JSON.parse(pSpecs);
-      } catch {
+      try { specs = JSON.parse(pSpecs); } catch {
         toast({ title: "المواصفات يجب أن تكون JSON صحيح", variant: "destructive" });
         setSavingProduct(false);
         return;
       }
     }
 
-    const productData = {
+    const productData: any = {
       name: pName,
       description: pDescription || null,
       price: Number(pPrice),
       original_price: pOriginalPrice ? Number(pOriginalPrice) : null,
       category_id: pCategoryId || null,
+      tier: pTier,
       is_available: pAvailable,
       image_url: imageUrl,
       specs,
@@ -215,18 +236,20 @@ const Admin = () => {
       .from("products")
       .update({ is_available: !product.is_available })
       .eq("id", product.id);
-    if (!error) {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    }
+    if (!error) queryClient.invalidateQueries({ queryKey: ["products"] });
   };
+
+  const totalVisits = stats?.reduce((sum, s) => sum + (s as any).visits, 0) || 0;
+  const todayVisits = stats?.find((s) => (s as any).date === new Date().toISOString().split("T")[0]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">جاري التحميل...</div>;
   }
 
+  const tierLabel = (t: string) => t === "economic" ? "اقتصادي" : t === "sport" ? "سبورت" : "متوسط";
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="glass sticky top-0 z-50 border-b border-border/50">
         <div className="container mx-auto px-4 flex items-center justify-between h-16">
           <h1 className="text-xl font-black text-gradient">لوحة التحكم</h1>
@@ -241,12 +264,15 @@ const Admin = () => {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="products" dir="rtl">
-          <TabsList className="mb-8 bg-secondary">
+          <TabsList className="mb-8 bg-secondary flex-wrap">
             <TabsTrigger value="products" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Package className="h-4 w-4" /> المنتجات
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Settings className="h-4 w-4" /> إعدادات الموقع
+              <Settings className="h-4 w-4" /> الإعدادات
+            </TabsTrigger>
+            <TabsTrigger value="stats" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="h-4 w-4" /> الإحصائيات
             </TabsTrigger>
             <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <KeyRound className="h-4 w-4" /> الأمان
@@ -261,20 +287,14 @@ const Admin = () => {
                 <Plus className="h-4 w-4" /> إضافة منتج
               </Button>
             </div>
-
             <div className="grid gap-4">
               {products?.map((product) => (
-                <div
-                  key={product.id}
-                  className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4"
-                >
+                <div key={product.id} className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4">
                   <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0 bg-secondary">
                     {product.image_url ? (
                       <img src={product.image_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Image className="h-6 w-6 text-muted-foreground" />
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center"><Image className="h-6 w-6 text-muted-foreground" /></div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -282,34 +302,25 @@ const Admin = () => {
                     <p className="text-sm text-muted-foreground">
                       {product.price.toLocaleString("ar-EG")} ج.م
                       {(product.categories as any)?.name && ` • ${(product.categories as any).name}`}
+                      {` • ${tierLabel((product as any).tier || "mid")}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{product.is_available ? "متوفر" : "غير متوفر"}</span>
-                      <Switch
-                        checked={product.is_available}
-                        onCheckedChange={() => handleToggleAvailability(product as Product)}
-                      />
+                      <Switch checked={product.is_available} onCheckedChange={() => handleToggleAvailability(product as Product)} />
                     </div>
                     <Button size="icon" variant="ghost" onClick={() => openEditProduct(product as Product)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteProduct(product.id)}
-                    >
+                    <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDeleteProduct(product.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
               ))}
               {(!products || products.length === 0) && (
-                <div className="text-center py-12 text-muted-foreground">
-                  لا توجد منتجات بعد. أضف أول منتج!
-                </div>
+                <div className="text-center py-12 text-muted-foreground">لا توجد منتجات بعد. أضف أول منتج!</div>
               )}
             </div>
           </TabsContent>
@@ -319,6 +330,21 @@ const Admin = () => {
             <h2 className="text-2xl font-bold">إعدادات الموقع</h2>
             <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-6 max-w-2xl">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Site Type */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>نوع الموقع</Label>
+                  <Select value={siteType} onValueChange={setSiteType}>
+                    <SelectTrigger className="bg-secondary border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">بنزين + كهرباء (مشترك)</SelectItem>
+                      <SelectItem value="gasoline">بنزين فقط</SelectItem>
+                      <SelectItem value="electric">كهرباء فقط</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2 sm:col-span-2">
                   <Label>اسم الموقع</Label>
                   <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} className="bg-secondary border-border" />
@@ -326,12 +352,27 @@ const Admin = () => {
                 <div className="space-y-2 sm:col-span-2">
                   <Label>اللوجو</Label>
                   <div className="flex items-center gap-4">
-                    {settings?.logo_url && (
-                      <img src={settings.logo_url} alt="Logo" className="h-12 object-contain rounded" />
-                    )}
+                    {settings?.logo_url && <img src={settings.logo_url} alt="Logo" className="h-12 object-contain rounded" />}
                     <Input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} className="bg-secondary border-border" />
                   </div>
                 </div>
+
+                {/* Hero product */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>المنتج الرئيسي (Hero)</Label>
+                  <Select value={heroProductId} onValueChange={setHeroProductId}>
+                    <SelectTrigger className="bg-secondary border-border">
+                      <SelectValue placeholder="اختر المنتج الرئيسي" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">بدون</SelectItem>
+                      {products?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label>رقم الهاتف</Label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-secondary border-border" dir="ltr" />
@@ -345,14 +386,51 @@ const Admin = () => {
                   <Input value={address} onChange={(e) => setAddress(e.target.value)} className="bg-secondary border-border" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
+                  <Label>رابط الموقع على الخريطة (Google Maps)</Label>
+                  <Input value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="https://maps.google.com/..." />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
                   <Label>رابط فيسبوك</Label>
                   <Input value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>رابط Google Drive (تحويل الزوار)</Label>
+                  <Input value={googleDriveUrl} onChange={(e) => setGoogleDriveUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="https://drive.google.com/..." />
+                  <p className="text-xs text-muted-foreground">لو حطيت رابط هنا، أي زائر هيتحول تلقائياً عليه</p>
                 </div>
               </div>
               <Button onClick={handleSaveSettings} className="gradient-primary text-primary-foreground font-bold" disabled={savingSettings}>
                 {savingSettings ? "جاري الحفظ..." : "حفظ الإعدادات"}
               </Button>
             </div>
+          </TabsContent>
+
+          {/* Stats Tab */}
+          <TabsContent value="stats" className="space-y-6">
+            <h2 className="text-2xl font-bold">إحصائيات الزوار</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+              <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
+                <p className="text-sm text-muted-foreground mb-1">زيارات اليوم</p>
+                <p className="text-4xl font-black text-primary">{(todayVisits as any)?.visits || 0}</p>
+              </div>
+              <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
+                <p className="text-sm text-muted-foreground mb-1">إجمالي الزيارات (30 يوم)</p>
+                <p className="text-4xl font-black text-primary">{totalVisits}</p>
+              </div>
+            </div>
+            {stats && stats.length > 0 && (
+              <div className="gradient-card rounded-lg border border-border/50 p-6 max-w-lg">
+                <h3 className="font-bold mb-4">آخر الأيام</h3>
+                <div className="space-y-2">
+                  {stats.slice(0, 10).map((s: any) => (
+                    <div key={s.id} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{s.date}</span>
+                      <span className="font-bold">{s.visits} زيارة</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Security Tab */}
@@ -363,34 +441,19 @@ const Admin = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>كلمة المرور الجديدة</Label>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="bg-secondary border-border"
-                    placeholder="••••••••"
-                    minLength={6}
-                  />
+                  <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-secondary border-border" placeholder="••••••••" minLength={6} />
                 </div>
                 <div className="space-y-2">
                   <Label>تأكيد كلمة المرور</Label>
-                  <Input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="bg-secondary border-border"
-                    placeholder="••••••••"
-                  />
+                  <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="bg-secondary border-border" placeholder="••••••••" />
                 </div>
                 <Button
                   onClick={async () => {
                     if (newPassword !== confirmPassword) {
-                      toast({ title: "كلمة المرور غير متطابقة", variant: "destructive" });
-                      return;
+                      toast({ title: "كلمة المرور غير متطابقة", variant: "destructive" }); return;
                     }
                     if (newPassword.length < 6) {
-                      toast({ title: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" });
-                      return;
+                      toast({ title: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" }); return;
                     }
                     setChangingPassword(true);
                     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -399,8 +462,7 @@ const Admin = () => {
                       toast({ title: "خطأ", description: error.message, variant: "destructive" });
                     } else {
                       toast({ title: "تم تغيير كلمة المرور بنجاح" });
-                      setNewPassword("");
-                      setConfirmPassword("");
+                      setNewPassword(""); setConfirmPassword("");
                     }
                   }}
                   className="gradient-primary text-primary-foreground font-bold"
@@ -437,22 +499,33 @@ const Admin = () => {
                 <Input type="number" value={pPrice} onChange={(e) => setPPrice(e.target.value)} className="bg-secondary border-border" dir="ltr" />
               </div>
               <div className="space-y-2">
-                <Label>السعر الأصلي (قبل الخصم)</Label>
+                <Label>السعر الأصلي</Label>
                 <Input type="number" value={pOriginalPrice} onChange={(e) => setPOriginalPrice(e.target.value)} className="bg-secondary border-border" dir="ltr" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>القسم</Label>
-              <Select value={pCategoryId} onValueChange={setPCategoryId}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="اختر القسم" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories?.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>القسم</Label>
+                <Select value={pCategoryId} onValueChange={setPCategoryId}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="اختر القسم" /></SelectTrigger>
+                  <SelectContent>
+                    {categories?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>الفئة</Label>
+                <Select value={pTier} onValueChange={setPTier}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="economic">اقتصادي / شعبي</SelectItem>
+                    <SelectItem value="mid">فئة متوسطة</SelectItem>
+                    <SelectItem value="sport">سبورت / عالي</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>صورة المنتج</Label>
@@ -467,14 +540,7 @@ const Admin = () => {
             </div>
             <div className="space-y-2">
               <Label>المواصفات (JSON)</Label>
-              <Textarea
-                value={pSpecs}
-                onChange={(e) => setPSpecs(e.target.value)}
-                className="bg-secondary border-border font-mono text-sm"
-                dir="ltr"
-                rows={4}
-                placeholder='{"المحرك": "200cc", "اللون": "أسود"}'
-              />
+              <Textarea value={pSpecs} onChange={(e) => setPSpecs(e.target.value)} className="bg-secondary border-border font-mono text-sm" dir="ltr" rows={4} placeholder='{"المحرك": "200cc", "اللون": "أسود"}' />
             </div>
             <Button onClick={handleSaveProduct} className="w-full gradient-primary text-primary-foreground font-bold" disabled={savingProduct}>
               {savingProduct ? "جاري الحفظ..." : editingProduct ? "حفظ التعديلات" : "إضافة المنتج"}

@@ -18,20 +18,15 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check if admin exists
   useEffect(() => {
-    const checkAdmin = async () => {
-      // Try to see if we have any products (indicating admin was set up)
-      const savedEmail = localStorage.getItem("admin_email");
-      if (savedEmail) {
-        setEmail(savedEmail);
-        setIsSetup(false);
-      } else {
-        setIsSetup(true);
-      }
-      setCheckingAdmin(false);
-    };
-    checkAdmin();
+    const savedEmail = localStorage.getItem("admin_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setIsSetup(false);
+    } else {
+      setIsSetup(true);
+    }
+    setCheckingAdmin(false);
   }, []);
 
   useEffect(() => {
@@ -61,7 +56,6 @@ const AdminLogin = () => {
       }
 
       localStorage.setItem("admin_email", email);
-      // Now sign in
       const { error: signInError } = await signIn(email, password);
       if (signInError) {
         toast({ title: "تم إنشاء الحساب", description: "سجل دخولك الآن" });
@@ -111,7 +105,7 @@ const AdminLogin = () => {
         </div>
 
         <form onSubmit={isSetup ? handleSetup : handleLogin} className="space-y-4">
-          {isSetup ? (
+          {isSetup && (
             <div className="space-y-2">
               <Label htmlFor="email">البريد الإلكتروني</Label>
               <Input
@@ -125,7 +119,7 @@ const AdminLogin = () => {
                 placeholder="admin@example.com"
               />
             </div>
-          ) : null}
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="password">كلمة المرور</Label>
@@ -146,11 +140,7 @@ const AdminLogin = () => {
             className="w-full gradient-primary text-primary-foreground font-bold"
             disabled={loading}
           >
-            {loading
-              ? "جاري المعالجة..."
-              : isSetup
-              ? "إنشاء الحساب"
-              : "دخول"}
+            {loading ? "جاري المعالجة..." : isSetup ? "إنشاء الحساب" : "دخول"}
           </Button>
         </form>
 
