@@ -100,6 +100,7 @@ export type Database = {
       site_settings: {
         Row: {
           address: string | null
+          admin_email: string | null
           facebook_url: string | null
           google_drive_url: string | null
           hero_product_id: string | null
@@ -114,6 +115,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          admin_email?: string | null
           facebook_url?: string | null
           google_drive_url?: string | null
           hero_product_id?: string | null
@@ -128,6 +130,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          admin_email?: string | null
           facebook_url?: string | null
           google_drive_url?: string | null
           hero_product_id?: string | null

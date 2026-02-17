@@ -9,30 +9,43 @@ import { useToast } from "@/hooks/use-toast";
 import { Lock, UserPlus } from "lucide-react";
 
 const AdminLogin = () => {
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSetup, setIsSetup] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const { signIn, user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     const checkExistingAdmin = async () => {
-      // Check if admin already exists in the database
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("role", "admin")
-        .limit(1);
-      
-      if (data && data.length > 0) {
-        // Admin exists, show login form
+      // Check if admin exists by looking at site_settings for admin_email
+      const { data: settings } = await supabase
+        .from("site_settings")
+        .select("admin_email")
+        .limit(1)
+        .single();
+
+      const email = (settings as any)?.admin_email;
+      if (email) {
+        setAdminEmail(email);
         setIsSetup(false);
       } else {
-        // No admin, show setup form
-        setIsSetup(true);
+        // Double check user_roles
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("role", "admin")
+          .limit(1);
+        
+        if (roles && roles.length > 0) {
+          // Admin exists but email not stored - they need to contact support
+          setAdminEmail(null);
+          setIsSetup(false);
+        } else {
+          setIsSetup(true);
+        }
       }
       setCheckingAdmin(false);
     };
@@ -47,12 +60,12 @@ const AdminLogin = () => {
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!password) return;
     setLoading(true);
 
     try {
       const { data, error } = await supabase.functions.invoke("setup-admin", {
-        body: { email, password },
+        body: { password },
       });
 
       if (error || data?.error) {
@@ -65,10 +78,13 @@ const AdminLogin = () => {
         return;
       }
 
-      const { error: signInError } = await signIn(email, password);
+      // Sign in with the default email
+      const defaultEmail = "admin@olex-motors.local";
+      const { error: signInError } = await signIn(defaultEmail, password);
       if (signInError) {
         toast({ title: "تم إنشاء الحساب", description: "سجل دخولك الآن" });
         setIsSetup(false);
+        setAdminEmail(defaultEmail);
       }
     } catch (err: any) {
       toast({ title: "خطأ", description: err.message, variant: "destructive" });
@@ -78,14 +94,17 @@ const AdminLogin = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!password) return;
     setLoading(true);
+
+    // Try with stored admin email, or default
+    const email = adminEmail || "admin@olex-motors.local";
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
       toast({
         title: "خطأ في تسجيل الدخول",
-        description: "البريد أو كلمة المرور غير صحيحة",
+        description: "كلمة المرور غير صحيحة",
         variant: "destructive",
       });
     }
@@ -110,25 +129,11 @@ const AdminLogin = () => {
             {isSetup ? "إنشاء حساب الإدمين" : "لوحة التحكم"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isSetup ? "أنشئ حساب الإدمين الأول" : "أدخل كلمة المرور للدخول"}
+            {isSetup ? "أنشئ كلمة مرور للإدمين" : "أدخل كلمة المرور للدخول"}
           </p>
         </div>
 
         <form onSubmit={isSetup ? handleSetup : handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">البريد الإلكتروني</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="bg-secondary border-border"
-              dir="ltr"
-              placeholder="admin@example.com"
-            />
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="password">كلمة المرور</Label>
             <Input
@@ -140,6 +145,7 @@ const AdminLogin = () => {
               className="bg-secondary border-border"
               placeholder="••••••••"
               minLength={6}
+              autoFocus
             />
           </div>
 
@@ -151,18 +157,6 @@ const AdminLogin = () => {
             {loading ? "جاري المعالجة..." : isSetup ? "إنشاء الحساب" : "دخول"}
           </Button>
         </form>
-
-        {!isSetup && (
-          <button
-            onClick={() => {
-              setIsSetup(true);
-              setEmail("");
-            }}
-            className="text-xs text-muted-foreground hover:text-primary transition-colors w-full text-center"
-          >
-            إنشاء حساب إدمين جديد
-          </button>
-        )}
       </div>
     </div>
   );

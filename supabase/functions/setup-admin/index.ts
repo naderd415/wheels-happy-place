@@ -13,9 +13,9 @@ Deno.serve(async (req) => {
   try {
     const { email, password } = await req.json();
 
-    if (!email || !password) {
+    if (!password) {
       return new Response(
-        JSON.stringify({ error: "Email and password are required" }),
+        JSON.stringify({ error: "Password is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -39,9 +39,12 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Use provided email or generate a default one
+    const adminEmail = email || `admin@olex-motors.local`;
+
     // Create user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: adminEmail,
       password,
       email_confirm: true,
     });
@@ -65,11 +68,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update site_settings with admin email
+    // Store admin email in site_settings
     await supabaseAdmin
       .from("site_settings")
-      .update({ phone: null })
-      .neq("id", "00000000-0000-0000-0000-000000000000"); // no-op trigger to update
+      .update({ admin_email: adminEmail })
+      .not("id", "is", null);
 
     return new Response(
       JSON.stringify({ success: true, message: "Admin account created successfully" }),
