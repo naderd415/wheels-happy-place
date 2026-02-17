@@ -10,8 +10,14 @@ export const useSiteSettings = () => {
         .select("*")
         .limit(1)
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("Site settings fetch error:", error);
+        throw error;
+      }
       return data;
     },
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 };
