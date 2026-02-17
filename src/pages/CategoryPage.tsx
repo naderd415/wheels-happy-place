@@ -14,19 +14,19 @@ const CategoryPage = () => {
   const category = categories?.find((c) => c.slug === slug);
   const filtered = products?.filter((p) => (p.categories as any)?.slug === slug);
 
-  const isGasoline = slug === "motorcycles";
   const isElectric = slug === "electric";
+  const isGasoline = slug === "motorcycles";
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={`min-h-screen flex flex-col ${isElectric ? "electric-theme" : ""}`}>
       <Navbar />
 
       {/* Category Hero with Animation */}
-      <div className="relative overflow-hidden py-16 border-b border-border/50">
+      <div className={`relative overflow-hidden py-16 border-b border-border/50 ${isElectric ? "bg-gradient-to-b from-[hsl(200,80%,8%)] to-background" : ""}`}>
         {isGasoline && <PistonAnimation />}
         {isElectric && <ElectricAnimation />}
         <div className="container mx-auto px-4 relative z-10">
-          <h1 className="text-4xl md:text-5xl font-black">
+          <h1 className={`text-4xl md:text-5xl font-black ${isElectric ? "text-[hsl(200,100%,65%)]" : ""}`}>
             {category?.name || slug}
           </h1>
           <p className="text-muted-foreground mt-2">
@@ -44,6 +44,25 @@ const CategoryPage = () => {
         <ProductsGrid products={filtered || []} />
       )}
       <Footer />
+
+      {isElectric && (
+        <style>{`
+          .electric-theme {
+            --primary: 200 85% 55%;
+            --primary-foreground: 0 0% 100%;
+            --ring: 200 85% 55%;
+          }
+          .electric-theme .text-gradient {
+            background: linear-gradient(135deg, hsl(200, 85%, 55%) 0%, hsl(180, 100%, 55%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          .electric-theme .gradient-primary {
+            background: linear-gradient(135deg, hsl(200, 85%, 55%) 0%, hsl(180, 90%, 45%) 100%);
+          }
+        `}</style>
+      )}
     </div>
   );
 };
