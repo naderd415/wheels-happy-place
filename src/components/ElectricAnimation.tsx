@@ -1,88 +1,123 @@
-import { useEffect, useState } from "react";
-
 const ElectricAnimation = () => {
-  const [animated, setAnimated] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimated(false), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Lightning bolts */}
-      {animated && (
-        <>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <svg
-              key={i}
-              className="absolute animate-lightning"
-              style={{
-                right: `${10 + i * 16}%`,
-                top: `${5 + (i % 3) * 15}%`,
-                opacity: 0.15,
-                animationDelay: `${i * 0.3}s`,
-                animationDuration: `${0.6 + (i % 3) * 0.2}s`,
-              }}
-              width="40"
-              height="100"
-              viewBox="0 0 40 100"
-            >
-              <path
-                d="M20 0 L10 40 L18 38 L8 100 L30 50 L22 52 L32 10 Z"
-                fill="hsl(200, 100%, 60%)"
-                className="drop-shadow-lg"
-              />
-            </svg>
-          ))}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
+      <svg
+        width="240"
+        height="280"
+        viewBox="0 0 240 280"
+        className="opacity-[0.12]"
+      >
+        {/* Central battery/bolt symbol */}
+        <g className="animate-electric-pulse" style={{ transformOrigin: '120px 140px' }}>
+          {/* Lightning bolt - main */}
+          <path
+            d="M130 40 L95 130 L115 130 L85 240 L150 120 L125 120 L155 40 Z"
+            fill="hsl(200, 100%, 60%)"
+            stroke="hsl(200, 100%, 70%)"
+            strokeWidth="1"
+          />
+        </g>
+        
+        {/* Radiating electric lines */}
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
+          <line
+            key={angle}
+            x1="120"
+            y1="140"
+            x2={120 + Math.cos((angle * Math.PI) / 180) * 110}
+            y2={140 + Math.sin((angle * Math.PI) / 180) * 110}
+            stroke="hsl(200, 100%, 60%)"
+            strokeWidth="1.5"
+            strokeDasharray="4 8"
+            className="animate-electric-line"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+        
+        {/* Outer arc sparks */}
+        {[30, 110, 200, 290].map((angle, i) => (
+          <path
+            key={`arc-${angle}`}
+            d={`M ${120 + Math.cos(((angle - 15) * Math.PI) / 180) * 95} ${140 + Math.sin(((angle - 15) * Math.PI) / 180) * 95} Q ${120 + Math.cos((angle * Math.PI) / 180) * 108} ${140 + Math.sin((angle * Math.PI) / 180) * 108} ${120 + Math.cos(((angle + 15) * Math.PI) / 180) * 95} ${140 + Math.sin(((angle + 15) * Math.PI) / 180) * 95}`}
+            fill="none"
+            stroke="hsl(200, 100%, 65%)"
+            strokeWidth="2"
+            className="animate-spark"
+            style={{ animationDelay: `${i * 0.4}s` }}
+          />
+        ))}
 
-          {/* Electric particles */}
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div
-              key={`p-${i}`}
-              className="absolute w-1 h-1 rounded-full animate-electric-particle"
-              style={{
-                background: "hsl(200, 100%, 70%)",
-                right: `${Math.random() * 90 + 5}%`,
-                top: `${Math.random() * 80 + 10}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                animationDuration: `${1 + Math.random() * 2}s`,
-                boxShadow: "0 0 6px 2px hsl(200, 100%, 60%)",
-              }}
-            />
-          ))}
-        </>
-      )}
+        {/* Energy ring */}
+        <circle
+          cx="120"
+          cy="140"
+          r="85"
+          fill="none"
+          stroke="hsl(200, 100%, 55%)"
+          strokeWidth="1.5"
+          strokeDasharray="6 12"
+          className="animate-ring-spin"
+          style={{ transformOrigin: '120px 140px' }}
+        />
+        
+        {/* Charging indicator dots */}
+        {[0, 1, 2, 3].map((i) => (
+          <circle
+            key={`dot-${i}`}
+            cx={120 + Math.cos(((i * 90 - 90) * Math.PI) / 180) * 95}
+            cy={140 + Math.sin(((i * 90 - 90) * Math.PI) / 180) * 95}
+            r="4"
+            fill="hsl(200, 100%, 65%)"
+            className="animate-dot-pulse"
+            style={{ animationDelay: `${i * 0.3}s` }}
+          />
+        ))}
+      </svg>
 
-      {/* Subtle electric glow that stays */}
+      {/* Subtle glow */}
       <div
-        className={`absolute inset-0 transition-opacity duration-1000 ${
-          animated ? "opacity-100" : "opacity-30"
-        }`}
+        className="absolute inset-0"
         style={{
-          background:
-            "radial-gradient(ellipse at 50% 50%, hsl(200 100% 50% / 0.05) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse at 50% 50%, hsl(200 100% 50% / 0.04) 0%, transparent 60%)",
         }}
       />
 
       <style>{`
-        @keyframes lightning-flash {
-          0% { opacity: 0; transform: scaleY(0.3); }
-          10% { opacity: 0.2; transform: scaleY(1); }
-          20% { opacity: 0; transform: scaleY(1); }
-          30% { opacity: 0.15; transform: scaleY(1); }
-          100% { opacity: 0; transform: scaleY(0.3); }
+        @keyframes electric-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.03); opacity: 0.85; }
         }
-        .animate-lightning {
-          animation: lightning-flash 1s ease-out infinite;
+        .animate-electric-pulse {
+          animation: electric-pulse 2s ease-in-out infinite;
         }
-        @keyframes electric-particle {
-          0% { opacity: 0; transform: scale(0); }
-          50% { opacity: 1; transform: scale(2); }
-          100% { opacity: 0; transform: scale(0); }
+        @keyframes electric-line {
+          0% { stroke-dashoffset: 0; opacity: 0.4; }
+          50% { stroke-dashoffset: 24; opacity: 0.8; }
+          100% { stroke-dashoffset: 48; opacity: 0.4; }
         }
-        .animate-electric-particle {
-          animation: electric-particle 1.5s ease-in-out infinite;
+        .animate-electric-line {
+          animation: electric-line 1.5s linear infinite;
+        }
+        @keyframes spark-flash {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 0.9; }
+        }
+        .animate-spark {
+          animation: spark-flash 1.2s ease-in-out infinite;
+        }
+        @keyframes ring-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-ring-spin {
+          animation: ring-spin 8s linear infinite;
+        }
+        @keyframes dot-pulse {
+          0%, 100% { r: 3; opacity: 0.4; }
+          50% { r: 6; opacity: 1; }
+        }
+        .animate-dot-pulse {
+          animation: dot-pulse 1.5s ease-in-out infinite;
         }
       `}</style>
     </div>
