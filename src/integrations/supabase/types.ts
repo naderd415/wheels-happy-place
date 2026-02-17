@@ -52,6 +52,7 @@ export type Database = {
           price: number
           sort_order: number | null
           specs: Json | null
+          tier: string | null
           updated_at: string
         }
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           price?: number
           sort_order?: number | null
           specs?: Json | null
+          tier?: string | null
           updated_at?: string
         }
         Update: {
@@ -82,6 +84,7 @@ export type Database = {
           price?: number
           sort_order?: number | null
           specs?: Json | null
+          tier?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -98,34 +101,54 @@ export type Database = {
         Row: {
           address: string | null
           facebook_url: string | null
+          google_drive_url: string | null
+          hero_product_id: string | null
           id: string
+          location_url: string | null
           logo_url: string | null
           phone: string | null
           site_name: string
+          site_type: string
           updated_at: string
           whatsapp: string | null
         }
         Insert: {
           address?: string | null
           facebook_url?: string | null
+          google_drive_url?: string | null
+          hero_product_id?: string | null
           id?: string
+          location_url?: string | null
           logo_url?: string | null
           phone?: string | null
           site_name?: string
+          site_type?: string
           updated_at?: string
           whatsapp?: string | null
         }
         Update: {
           address?: string | null
           facebook_url?: string | null
+          google_drive_url?: string | null
+          hero_product_id?: string | null
           id?: string
+          location_url?: string | null
           logo_url?: string | null
           phone?: string | null
           site_name?: string
+          site_type?: string
           updated_at?: string
           whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "site_settings_hero_product_id_fkey"
+            columns: ["hero_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -142,6 +165,27 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visitor_stats: {
+        Row: {
+          date: string
+          id: string
+          unique_visitors: number
+          visits: number
+        }
+        Insert: {
+          date?: string
+          id?: string
+          unique_visitors?: number
+          visits?: number
+        }
+        Update: {
+          date?: string
+          id?: string
+          unique_visitors?: number
+          visits?: number
         }
         Relationships: []
       }
