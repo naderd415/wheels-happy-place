@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+console.log("[DEBUG] Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+
 export const useProducts = (categorySlug?: string) => {
   return useQuery({
     queryKey: ["products", categorySlug],
     queryFn: async () => {
+      console.log("[DEBUG] Fetching products...");
       const query = supabase
         .from("products")
         .select("*, categories(name, slug)")
