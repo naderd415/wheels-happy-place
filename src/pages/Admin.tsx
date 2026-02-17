@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image } from "lucide-react";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import type { Tables } from "@/integrations/supabase/types";
@@ -36,6 +36,11 @@ const Admin = () => {
   const [facebookUrl, setFacebookUrl] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Password change state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   // Product dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -243,6 +248,9 @@ const Admin = () => {
             <TabsTrigger value="settings" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Settings className="h-4 w-4" /> إعدادات الموقع
             </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <KeyRound className="h-4 w-4" /> الأمان
+            </TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
@@ -344,6 +352,63 @@ const Admin = () => {
               <Button onClick={handleSaveSettings} className="gradient-primary text-primary-foreground font-bold" disabled={savingSettings}>
                 {savingSettings ? "جاري الحفظ..." : "حفظ الإعدادات"}
               </Button>
+            </div>
+          </TabsContent>
+
+          {/* Security Tab */}
+          <TabsContent value="security" className="space-y-6">
+            <h2 className="text-2xl font-bold">الأمان</h2>
+            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-6 max-w-md">
+              <h3 className="font-bold text-lg">تغيير كلمة المرور</h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>كلمة المرور الجديدة</Label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="bg-secondary border-border"
+                    placeholder="••••••••"
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>تأكيد كلمة المرور</Label>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="bg-secondary border-border"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (newPassword !== confirmPassword) {
+                      toast({ title: "كلمة المرور غير متطابقة", variant: "destructive" });
+                      return;
+                    }
+                    if (newPassword.length < 6) {
+                      toast({ title: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" });
+                      return;
+                    }
+                    setChangingPassword(true);
+                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                    setChangingPassword(false);
+                    if (error) {
+                      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                    } else {
+                      toast({ title: "تم تغيير كلمة المرور بنجاح" });
+                      setNewPassword("");
+                      setConfirmPassword("");
+                    }
+                  }}
+                  className="gradient-primary text-primary-foreground font-bold"
+                  disabled={changingPassword}
+                >
+                  {changingPassword ? "جاري التغيير..." : "تغيير كلمة المرور"}
+                </Button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
