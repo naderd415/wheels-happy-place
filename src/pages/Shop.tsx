@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 
 const Shop = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const { data: products, isLoading } = useProducts();
-  const { data: categories } = useCategories();
+  const { data: products = [], isLoading } = useProducts();
+  const { data: categories = [] } = useCategories();
 
   const filtered = selectedCategory
-    ? products?.filter((p) => (p.categories as any)?.slug === selectedCategory)
+    ? products.filter((p) => (p.categories as any)?.slug === selectedCategory)
     : products;
 
   return (
@@ -27,7 +27,7 @@ const Shop = () => {
           >
             الكل
           </Button>
-          {categories?.map((cat) => (
+          {categories.map((cat) => (
             <Button
               key={cat.id}
               variant={selectedCategory === cat.slug ? "default" : "secondary"}
@@ -39,10 +39,12 @@ const Shop = () => {
           ))}
         </div>
       </div>
-      {isLoading ? (
-        <div className="py-20 text-center text-muted-foreground">جاري التحميل...</div>
+      {isLoading && products.length === 0 ? (
+        <div className="py-20 flex justify-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : (
-        <ProductsGrid products={filtered || []} />
+        <ProductsGrid products={filtered} />
       )}
       <Footer />
     </div>
