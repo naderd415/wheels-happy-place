@@ -8,11 +8,11 @@ import ElectricAnimation from "@/components/ElectricAnimation";
 
 const CategoryPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { data: products, isLoading } = useProducts();
-  const { data: categories } = useCategories();
+  const { data: products = [], isLoading } = useProducts();
+  const { data: categories = [] } = useCategories();
 
-  const category = categories?.find((c) => c.slug === slug);
-  const filtered = products?.filter((p) => (p.categories as any)?.slug === slug);
+  const category = categories.find((c) => c.slug === slug);
+  const filtered = products.filter((p) => (p.categories as any)?.slug === slug);
 
   const isElectric = slug === "electric";
   const isGasoline = slug === "motorcycles";
@@ -21,15 +21,15 @@ const CategoryPage = () => {
     <div className={`min-h-screen flex flex-col ${isElectric ? "electric-theme" : ""}`}>
       <Navbar />
 
-      {/* Category Hero with Animation */}
-      <div className={`relative overflow-hidden py-16 border-b border-border/50 ${isElectric ? "bg-gradient-to-b from-[hsl(200,80%,8%)] to-background" : ""}`}>
+      {/* Category Hero with Neon Animation */}
+      <div className={`relative overflow-hidden py-20 border-b border-border/50 ${isElectric ? "bg-gradient-to-b from-[hsl(200,80%,6%)] to-background" : ""}`}>
         {isGasoline && <PistonAnimation />}
         {isElectric && <ElectricAnimation />}
         <div className="container mx-auto px-4 relative z-10">
           <h1 className={`text-4xl md:text-5xl font-black ${isElectric ? "text-[hsl(200,100%,65%)]" : ""}`}>
             {category?.name || slug}
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-3 text-lg">
             {isGasoline && "أقوى الموتوسيكلات بمحركات بنزين عالية الأداء"}
             {isElectric && "موتوسيكلات كهربائية صديقة للبيئة وموفرة"}
             {slug === "scooters" && "سكوترات عملية للتنقل اليومي"}
@@ -38,10 +38,12 @@ const CategoryPage = () => {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="py-20 text-center text-muted-foreground">جاري التحميل...</div>
+      {isLoading && products.length === 0 ? (
+        <div className="py-20 flex justify-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : (
-        <ProductsGrid products={filtered || []} />
+        <ProductsGrid products={filtered} />
       )}
       <Footer />
 
