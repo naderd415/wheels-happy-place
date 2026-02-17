@@ -8,7 +8,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 
 const Index = () => {
-  const { data: products, isLoading } = useProducts();
+  const { data: products, isLoading, error } = useProducts();
   const { data: settings } = useSiteSettings();
   useVisitorTracking();
 
@@ -33,10 +33,22 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <HeroSection />
-      {isLoading ? (
-        <div className="py-20 text-center text-muted-foreground">جاري التحميل...</div>
+      {filteredProducts && filteredProducts.length > 0 ? (
+        <ProductsGrid products={filteredProducts} title="أحدث المنتجات" />
+      ) : isLoading ? (
+        <div className="py-20 text-center text-muted-foreground animate-pulse">جاري التحميل...</div>
+      ) : error ? (
+        <div className="py-20 text-center text-destructive">
+          <p>حدث خطأ في تحميل المنتجات</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="block mx-auto mt-4 text-sm text-primary hover:underline"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
       ) : (
-        <ProductsGrid products={filteredProducts || []} title="أحدث المنتجات" />
+        <ProductsGrid products={[]} title="أحدث المنتجات" />
       )}
       <FeaturesSection />
       <Footer />

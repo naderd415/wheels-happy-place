@@ -5,19 +5,21 @@ export const useProducts = (categorySlug?: string) => {
   return useQuery({
     queryKey: ["products", categorySlug],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from("products")
         .select("*, categories(name, slug)")
         .order("sort_order", { ascending: true });
 
-      if (categorySlug) {
-        query = query.eq("categories.slug", categorySlug);
-      }
-
       const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error("Products fetch error:", error);
+        throw error;
+      }
+      return data || [];
     },
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 };
 
@@ -45,8 +47,14 @@ export const useCategories = () => {
         .from("categories")
         .select("*")
         .order("sort_order", { ascending: true });
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error("Categories fetch error:", error);
+        throw error;
+      }
+      return data || [];
     },
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 };
