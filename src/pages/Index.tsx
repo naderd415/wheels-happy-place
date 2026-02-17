@@ -1,12 +1,24 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import Navbar from "@/components/Navbar";
+import HeroSection from "@/components/HeroSection";
+import ProductsGrid from "@/components/ProductsGrid";
+import FeaturesSection from "@/components/FeaturesSection";
+import Footer from "@/components/Footer";
+import { useProducts } from "@/hooks/useProducts";
 
 const Index = () => {
+  const { data: products, isLoading } = useProducts();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <HeroSection />
+      {isLoading ? (
+        <div className="py-20 text-center text-muted-foreground">جاري التحميل...</div>
+      ) : (
+        <ProductsGrid products={products || []} title="وصل الينا حديثاً" />
+      )}
+      <FeaturesSection />
+      <Footer />
     </div>
   );
 };
