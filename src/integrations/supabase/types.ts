@@ -153,6 +153,30 @@ export type Database = {
           },
         ]
       }
+      site_texts: {
+        Row: {
+          description: string | null
+          id: string
+          text_key: string
+          text_value: string
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          text_key: string
+          text_value?: string
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          text_key?: string
+          text_value?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

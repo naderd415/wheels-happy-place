@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Globe } from "lucide-react";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Globe, Type } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import type { Tables } from "@/integrations/supabase/types";
@@ -41,6 +41,46 @@ const Admin = () => {
       return data;
     },
   });
+
+  // Site texts
+  const { data: siteTexts } = useQuery({
+    queryKey: ["admin-site-texts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_texts" as any)
+        .select("*")
+        .order("text_key");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+  const [textsEdits, setTextsEdits] = useState<Record<string, string>>({});
+  const [savingTexts, setSavingTexts] = useState(false);
+
+  useEffect(() => {
+    if (siteTexts) {
+      const map: Record<string, string> = {};
+      siteTexts.forEach((t: any) => (map[t.text_key] = t.text_value));
+      setTextsEdits(map);
+    }
+  }, [siteTexts]);
+
+  const handleSaveTexts = async () => {
+    setSavingTexts(true);
+    for (const t of siteTexts || []) {
+      const newVal = textsEdits[(t as any).text_key];
+      if (newVal !== undefined && newVal !== (t as any).text_value) {
+        await supabase
+          .from("site_texts" as any)
+          .update({ text_value: newVal } as any)
+          .eq("id", (t as any).id);
+      }
+    }
+    setSavingTexts(false);
+    toast({ title: "تم حفظ النصوص بنجاح" });
+    queryClient.invalidateQueries({ queryKey: ["admin-site-texts"] });
+    queryClient.invalidateQueries({ queryKey: ["site-texts"] });
+  };
 
   // Site settings state
   const [siteName, setSiteName] = useState("");
@@ -277,6 +317,9 @@ const Admin = () => {
             <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <KeyRound className="h-4 w-4" /> الأمان
             </TabsTrigger>
+            <TabsTrigger value="texts" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Type className="h-4 w-4" /> النصوص
+            </TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
@@ -471,6 +514,39 @@ const Admin = () => {
                   {changingPassword ? "جاري التغيير..." : "تغيير كلمة المرور"}
                 </Button>
               </div>
+            </div>
+          </TabsContent>
+
+          {/* Texts Tab */}
+          <TabsContent value="texts" className="space-y-6">
+            <h2 className="text-2xl font-bold">إدارة النصوص</h2>
+            <p className="text-muted-foreground">تحكم في كل النصوص المكتوبة في الموقع من هنا</p>
+            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5 max-w-2xl">
+              {siteTexts?.map((t: any) => (
+                <div key={t.id} className="space-y-1.5">
+                  <Label className="text-sm">
+                    {t.description || t.text_key}
+                    <span className="text-xs text-muted-foreground mr-2">({t.text_key})</span>
+                  </Label>
+                  {(textsEdits[t.text_key] || "").length > 60 ? (
+                    <Textarea
+                      value={textsEdits[t.text_key] || ""}
+                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
+                      className="bg-secondary border-border"
+                      rows={3}
+                    />
+                  ) : (
+                    <Input
+                      value={textsEdits[t.text_key] || ""}
+                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
+                      className="bg-secondary border-border"
+                    />
+                  )}
+                </div>
+              ))}
+              <Button onClick={handleSaveTexts} className="gradient-primary text-primary-foreground font-bold" disabled={savingTexts}>
+                {savingTexts ? "جاري الحفظ..." : "حفظ النصوص"}
+              </Button>
             </div>
           </TabsContent>
         </Tabs>
