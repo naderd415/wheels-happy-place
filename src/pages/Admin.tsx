@@ -12,12 +12,15 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Globe, Type } from "lucide-react";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Type, Star, Sun, Moon } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const Admin = () => {
   const { user, isAdmin, loading, signOut } = useAuth();
@@ -32,11 +35,7 @@ const Admin = () => {
   const { data: stats } = useQuery({
     queryKey: ["visitor-stats"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("visitor_stats")
-        .select("*")
-        .order("date", { ascending: false })
-        .limit(30);
+      const { data, error } = await supabase.from("visitor_stats").select("*").order("date", { ascending: false }).limit(30);
       if (error) throw error;
       return data;
     },
@@ -46,14 +45,24 @@ const Admin = () => {
   const { data: siteTexts } = useQuery({
     queryKey: ["admin-site-texts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("site_texts" as any)
-        .select("*")
-        .order("text_key");
+      const { data, error } = await supabase.from("site_texts" as any).select("*").order("text_key");
       if (error) throw error;
       return data as any[];
     },
   });
+
+  // Site features
+  const { data: siteFeatures, refetch: refetchFeatures } = useQuery({
+    queryKey: ["admin-site-features"],
+    queryFn: async () => {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/site_features?select=*&order=sort_order.asc`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   const [textsEdits, setTextsEdits] = useState<Record<string, string>>({});
   const [savingTexts, setSavingTexts] = useState(false);
 
@@ -70,10 +79,7 @@ const Admin = () => {
     for (const t of siteTexts || []) {
       const newVal = textsEdits[(t as any).text_key];
       if (newVal !== undefined && newVal !== (t as any).text_value) {
-        await supabase
-          .from("site_texts" as any)
-          .update({ text_value: newVal } as any)
-          .eq("id", (t as any).id);
+        await supabase.from("site_texts" as any).update({ text_value: newVal } as any).eq("id", (t as any).id);
       }
     }
     setSavingTexts(false);
@@ -85,14 +91,18 @@ const Admin = () => {
   // Site settings state
   const [siteName, setSiteName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [phone3, setPhone3] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [address, setAddress] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   const [siteType, setSiteType] = useState("both");
+  const [themeMode, setThemeMode] = useState("dark");
   const [heroProductId, setHeroProductId] = useState("none");
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [heroImageFile, setHeroImageFile] = useState<File | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Password state
@@ -112,7 +122,17 @@ const Admin = () => {
   const [pAvailable, setPAvailable] = useState(true);
   const [pSpecs, setPSpecs] = useState("");
   const [pImageFile, setPImageFile] = useState<File | null>(null);
+  const [pGalleryFiles, setPGalleryFiles] = useState<FileList | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+
+  // Feature dialog state
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [editingFeature, setEditingFeature] = useState<any>(null);
+  const [fTitle, setFTitle] = useState("");
+  const [fDescription, setFDescription] = useState("");
+  const [fIconName, setFIconName] = useState("Star");
+  const [fActive, setFActive] = useState(true);
+  const [savingFeature, setSavingFeature] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -124,12 +144,15 @@ const Admin = () => {
     if (settings) {
       setSiteName(settings.site_name || "");
       setPhone(settings.phone || "");
+      setPhone2((settings as any).phone2 || "");
+      setPhone3((settings as any).phone3 || "");
       setWhatsapp(settings.whatsapp || "");
       setAddress(settings.address || "");
       setFacebookUrl(settings.facebook_url || "");
       setLocationUrl((settings as any).location_url || "");
       setGoogleDriveUrl((settings as any).google_drive_url || "");
       setSiteType((settings as any).site_type || "both");
+      setThemeMode((settings as any).theme_mode || "dark");
       setHeroProductId((settings as any).hero_product_id || "none");
     }
   }, [settings]);
@@ -138,37 +161,42 @@ const Admin = () => {
     if (!settings) return;
     setSavingSettings(true);
     let logoUrl = settings.logo_url;
+    let heroImageUrl = (settings as any).hero_image_url;
 
     if (logoFile) {
       const ext = logoFile.name.split(".").pop();
       const path = `logo/logo.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(path, logoFile, { upsert: true });
-      if (uploadError) {
-        toast({ title: "خطأ في رفع اللوجو", description: uploadError.message, variant: "destructive" });
-        setSavingSettings(false);
-        return;
+      const { error: uploadError } = await supabase.storage.from("media").upload(path, logoFile, { upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+        logoUrl = urlData.publicUrl;
       }
-      const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-      logoUrl = urlData.publicUrl;
     }
 
-    const { error } = await supabase
-      .from("site_settings")
-      .update({
-        site_name: siteName,
-        phone,
-        whatsapp,
-        address,
-        facebook_url: facebookUrl,
-        logo_url: logoUrl,
-        location_url: locationUrl,
-        google_drive_url: googleDriveUrl,
-        site_type: siteType,
-        hero_product_id: heroProductId === "none" ? null : heroProductId,
-      } as any)
-      .eq("id", settings.id);
+    if (heroImageFile) {
+      const ext = heroImageFile.name.split(".").pop();
+      const path = `hero/hero.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("media").upload(path, heroImageFile, { upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+        heroImageUrl = urlData.publicUrl;
+      }
+    }
+
+    const { error } = await supabase.from("site_settings").update({
+      site_name: siteName,
+      phone, whatsapp, address,
+      facebook_url: facebookUrl,
+      logo_url: logoUrl,
+      location_url: locationUrl,
+      google_drive_url: googleDriveUrl,
+      site_type: siteType,
+      theme_mode: themeMode,
+      hero_product_id: heroProductId === "none" ? null : heroProductId,
+      hero_image_url: heroImageUrl,
+      phone2: phone2 || null,
+      phone3: phone3 || null,
+    } as any).eq("id", settings.id);
 
     setSavingSettings(false);
     if (error) {
@@ -179,10 +207,18 @@ const Admin = () => {
     }
   };
 
+  const handleRemoveHeroImage = async () => {
+    if (!settings) return;
+    await supabase.from("site_settings").update({ hero_image_url: null } as any).eq("id", settings.id);
+    queryClient.invalidateQueries({ queryKey: ["site-settings"] });
+    toast({ title: "تم حذف صورة الهيرو" });
+  };
+
+  // Product CRUD
   const openAddProduct = () => {
     setEditingProduct(null);
     setPName(""); setPDescription(""); setPPrice(""); setPOriginalPrice("");
-    setPCategoryId(""); setPTier("mid"); setPAvailable(true); setPSpecs(""); setPImageFile(null);
+    setPCategoryId(""); setPTier("mid"); setPAvailable(true); setPSpecs(""); setPImageFile(null); setPGalleryFiles(null);
     setDialogOpen(true);
   };
 
@@ -197,6 +233,7 @@ const Admin = () => {
     setPAvailable(product.is_available);
     setPSpecs(product.specs ? JSON.stringify(product.specs, null, 2) : "");
     setPImageFile(null);
+    setPGalleryFiles(null);
     setDialogOpen(true);
   };
 
@@ -207,20 +244,32 @@ const Admin = () => {
     }
     setSavingProduct(true);
     let imageUrl = editingProduct?.image_url || null;
+    let galleryUrls: string[] = editingProduct?.images || [];
 
     if (pImageFile) {
       const ext = pImageFile.name.split(".").pop();
       const path = `products/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(path, pImageFile);
-      if (uploadError) {
-        toast({ title: "خطأ في رفع الصورة", description: uploadError.message, variant: "destructive" });
-        setSavingProduct(false);
-        return;
+      const { error: uploadError } = await supabase.storage.from("media").upload(path, pImageFile);
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+        imageUrl = urlData.publicUrl;
       }
-      const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-      imageUrl = urlData.publicUrl;
+    }
+
+    // Upload gallery images
+    if (pGalleryFiles && pGalleryFiles.length > 0) {
+      const newUrls: string[] = [];
+      for (let i = 0; i < pGalleryFiles.length; i++) {
+        const file = pGalleryFiles[i];
+        const ext = file.name.split(".").pop();
+        const path = `products/gallery/${Date.now()}_${i}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("media").upload(path, file);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
+          newUrls.push(urlData.publicUrl);
+        }
+      }
+      galleryUrls = [...galleryUrls, ...newUrls];
     }
 
     let specs = {};
@@ -241,6 +290,7 @@ const Admin = () => {
       tier: pTier,
       is_available: pAvailable,
       image_url: imageUrl,
+      images: galleryUrls,
       specs,
     };
 
@@ -263,20 +313,53 @@ const Admin = () => {
 
   const handleDeleteProduct = async (id: string) => {
     const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    } else {
+    if (!error) {
       toast({ title: "تم الحذف بنجاح" });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     }
   };
 
   const handleToggleAvailability = async (product: Product) => {
-    const { error } = await supabase
-      .from("products")
-      .update({ is_available: !product.is_available })
-      .eq("id", product.id);
-    if (!error) queryClient.invalidateQueries({ queryKey: ["products"] });
+    await supabase.from("products").update({ is_available: !product.is_available }).eq("id", product.id);
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  };
+
+  // Feature CRUD
+  const openAddFeature = () => {
+    setEditingFeature(null);
+    setFTitle(""); setFDescription(""); setFIconName("Star"); setFActive(true);
+    setFeatureDialogOpen(true);
+  };
+
+  const openEditFeature = (f: any) => {
+    setEditingFeature(f);
+    setFTitle(f.title); setFDescription(f.description); setFIconName(f.icon_name); setFActive(f.is_active);
+    setFeatureDialogOpen(true);
+  };
+
+  const handleSaveFeature = async () => {
+    if (!fTitle) return;
+    setSavingFeature(true);
+    const data: any = { title: fTitle, description: fDescription, icon_name: fIconName, is_active: fActive };
+
+    if (editingFeature) {
+      await supabase.from("site_features" as any).update(data).eq("id", editingFeature.id);
+    } else {
+      await supabase.from("site_features" as any).insert(data);
+    }
+
+    setSavingFeature(false);
+    setFeatureDialogOpen(false);
+    refetchFeatures();
+    queryClient.invalidateQueries({ queryKey: ["site-features"] });
+    toast({ title: "تم الحفظ" });
+  };
+
+  const handleDeleteFeature = async (id: string) => {
+    await supabase.from("site_features" as any).delete().eq("id", id);
+    refetchFeatures();
+    queryClient.invalidateQueries({ queryKey: ["site-features"] });
+    toast({ title: "تم الحذف" });
   };
 
   const totalVisits = stats?.reduce((sum, s) => sum + (s as any).visits, 0) || 0;
@@ -287,6 +370,8 @@ const Admin = () => {
   }
 
   const tierLabel = (t: string) => t === "economic" ? "اقتصادي" : t === "sport" ? "سبورت" : "متوسط";
+
+  const iconOptions = ["Truck", "CreditCard", "Wrench", "Headphones", "ShieldCheck", "BadgePercent", "Leaf", "Star", "Zap"];
 
   return (
     <div className="min-h-screen bg-background">
@@ -304,21 +389,24 @@ const Admin = () => {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="products" dir="rtl">
-          <TabsList className="mb-8 bg-secondary flex-wrap">
+          <TabsList className="mb-8 bg-secondary flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="products" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Package className="h-4 w-4" /> المنتجات
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Settings className="h-4 w-4" /> الإعدادات
             </TabsTrigger>
+            <TabsTrigger value="features" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Star className="h-4 w-4" /> المميزات
+            </TabsTrigger>
             <TabsTrigger value="stats" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> الإحصائيات
             </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <KeyRound className="h-4 w-4" /> الأمان
-            </TabsTrigger>
             <TabsTrigger value="texts" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Type className="h-4 w-4" /> النصوص
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <KeyRound className="h-4 w-4" /> الأمان
             </TabsTrigger>
           </TabsList>
 
@@ -346,24 +434,22 @@ const Admin = () => {
                       {product.price.toLocaleString("ar-EG")} ج.م
                       {(product.categories as any)?.name && ` • ${(product.categories as any).name}`}
                       {` • ${tierLabel((product as any).tier || "mid")}`}
+                      {product.images && product.images.length > 0 && ` • ${product.images.length} صور`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{product.is_available ? "متوفر" : "غير متوفر"}</span>
-                      <Switch checked={product.is_available} onCheckedChange={() => handleToggleAvailability(product as Product)} />
-                    </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Switch checked={product.is_available} onCheckedChange={() => handleToggleAvailability(product as Product)} />
                     <Button size="icon" variant="ghost" onClick={() => openEditProduct(product as Product)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDeleteProduct(product.id)}>
+                    <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteProduct(product.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
               ))}
               {(!products || products.length === 0) && (
-                <div className="text-center py-12 text-muted-foreground">لا توجد منتجات بعد. أضف أول منتج!</div>
+                <div className="text-center py-12 text-muted-foreground">لا توجد منتجات بعد</div>
               )}
             </div>
           </TabsContent>
@@ -371,80 +457,158 @@ const Admin = () => {
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
             <h2 className="text-2xl font-bold">إعدادات الموقع</h2>
-            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-6 max-w-2xl">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Site Type */}
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>نوع الموقع</Label>
-                  <Select value={siteType} onValueChange={setSiteType}>
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="both">بنزين + كهرباء (مشترك)</SelectItem>
-                      <SelectItem value="gasoline">بنزين فقط</SelectItem>
-                      <SelectItem value="electric">كهرباء فقط</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>اسم الموقع</Label>
-                  <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} className="bg-secondary border-border" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>اللوجو</Label>
-                  <div className="flex items-center gap-4">
-                    {settings?.logo_url && <img src={settings.logo_url} alt="Logo" className="h-12 object-contain rounded" />}
-                    <Input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} className="bg-secondary border-border" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* General */}
+              <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5">
+                <h3 className="font-bold text-lg border-b border-border/30 pb-3">إعدادات عامة</h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>نوع الموقع</Label>
+                    <Select value={siteType} onValueChange={setSiteType}>
+                      <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="both">بنزين + كهرباء</SelectItem>
+                        <SelectItem value="gasoline">بنزين فقط</SelectItem>
+                        <SelectItem value="electric">كهرباء فقط</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>المظهر</Label>
+                    <Select value={themeMode} onValueChange={setThemeMode}>
+                      <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dark"><span className="flex items-center gap-2"><Moon className="h-4 w-4" /> داكن</span></SelectItem>
+                        <SelectItem value="light"><span className="flex items-center gap-2"><Sun className="h-4 w-4" /> فاتح</span></SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>اسم الموقع</Label>
+                    <Input value={siteName} onChange={(e) => setSiteName(e.target.value)} className="bg-secondary border-border" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>اللوجو</Label>
+                    <div className="flex items-center gap-3">
+                      {settings?.logo_url && <img src={settings.logo_url} alt="Logo" className="h-10 object-contain rounded" />}
+                      <Input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} className="bg-secondary border-border" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>المنتج الرئيسي (Hero)</Label>
+                    <Select value={heroProductId} onValueChange={setHeroProductId}>
+                      <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="اختر المنتج الرئيسي" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">بدون</SelectItem>
+                        {products?.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
+              </div>
 
-                {/* Hero product */}
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>المنتج الرئيسي (Hero)</Label>
-                  <Select value={heroProductId} onValueChange={setHeroProductId}>
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="اختر المنتج الرئيسي" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">بدون</SelectItem>
-                      {products?.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Hero Image */}
+              <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5">
+                <h3 className="font-bold text-lg border-b border-border/30 pb-3">صورة الهيرو الرئيسية</h3>
+                <p className="text-sm text-muted-foreground">الصورة الكبيرة في أعلى الصفحة الرئيسية</p>
+                {(settings as any)?.hero_image_url && (
+                  <div className="relative">
+                    <img src={(settings as any).hero_image_url} alt="Hero" className="w-full h-40 object-cover rounded-lg" />
+                    <Button size="sm" variant="destructive" className="absolute top-2 left-2" onClick={handleRemoveHeroImage}>
+                      <Trash2 className="h-3 w-3 ml-1" /> حذف
+                    </Button>
+                  </div>
+                )}
+                <Input type="file" accept="image/*" onChange={(e) => setHeroImageFile(e.target.files?.[0] || null)} className="bg-secondary border-border" />
 
-                <div className="space-y-2">
-                  <Label>رقم الهاتف</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-secondary border-border" dir="ltr" />
-                </div>
-                <div className="space-y-2">
-                  <Label>واتساب</Label>
-                  <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="bg-secondary border-border" dir="ltr" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>العنوان</Label>
-                  <Input value={address} onChange={(e) => setAddress(e.target.value)} className="bg-secondary border-border" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>رابط الموقع على الخريطة (Google Maps)</Label>
-                  <Input value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="https://maps.google.com/..." />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>رابط فيسبوك</Label>
-                  <Input value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>رابط Google Drive (تحويل الزوار)</Label>
-                  <Input value={googleDriveUrl} onChange={(e) => setGoogleDriveUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="https://drive.google.com/..." />
-                  <p className="text-xs text-muted-foreground">لو حطيت رابط هنا، أي زائر هيتحول تلقائياً عليه</p>
+                <h3 className="font-bold text-lg border-b border-border/30 pb-3 pt-4">أرقام الهواتف</h3>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>رقم 1 (أساسي)</Label>
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>رقم 2</Label>
+                    <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="اختياري" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>رقم 3</Label>
+                    <Input value={phone3} onChange={(e) => setPhone3(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="اختياري" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>واتساب</Label>
+                    <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                  </div>
                 </div>
               </div>
-              <Button onClick={handleSaveSettings} className="gradient-primary text-primary-foreground font-bold" disabled={savingSettings}>
-                {savingSettings ? "جاري الحفظ..." : "حفظ الإعدادات"}
+
+              {/* Links & Address */}
+              <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5 lg:col-span-2">
+                <h3 className="font-bold text-lg border-b border-border/30 pb-3">الروابط والعنوان</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>العنوان</Label>
+                    <Input value={address} onChange={(e) => setAddress(e.target.value)} className="bg-secondary border-border" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>رابط فيسبوك</Label>
+                    <Input value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>رابط الخريطة</Label>
+                    <Input value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>رابط تحويل (Google Drive)</Label>
+                    <Input value={googleDriveUrl} onChange={(e) => setGoogleDriveUrl(e.target.value)} className="bg-secondary border-border" dir="ltr" />
+                    <p className="text-xs text-muted-foreground">لو حطيت رابط هنا، الزوار هيتحولوا عليه</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Button onClick={handleSaveSettings} className="gradient-primary text-primary-foreground font-bold px-8" disabled={savingSettings}>
+              {savingSettings ? "جاري الحفظ..." : "حفظ جميع الإعدادات"}
+            </Button>
+          </TabsContent>
+
+          {/* Features Tab */}
+          <TabsContent value="features" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">قسم "لماذا تختارنا"</h2>
+                <p className="text-sm text-muted-foreground">تحكم في المميزات المعروضة في الصفحة الرئيسية</p>
+              </div>
+              <Button onClick={openAddFeature} className="gradient-primary text-primary-foreground gap-2">
+                <Plus className="h-4 w-4" /> إضافة ميزة
               </Button>
+            </div>
+            <div className="grid gap-4 max-w-2xl">
+              {siteFeatures?.map((f: any) => (
+                <div key={f.id} className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-foreground text-xs font-bold">{f.icon_name}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold">{f.title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{f.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Switch checked={f.is_active} onCheckedChange={async (v) => {
+                      await supabase.from("site_features" as any).update({ is_active: v } as any).eq("id", f.id);
+                      refetchFeatures();
+                      queryClient.invalidateQueries({ queryKey: ["site-features"] });
+                    }} />
+                    <Button size="icon" variant="ghost" onClick={() => openEditFeature(f)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteFeature(f.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </TabsContent>
 
@@ -457,7 +621,7 @@ const Admin = () => {
                 <p className="text-4xl font-black text-primary">{(todayVisits as any)?.visits || 0}</p>
               </div>
               <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
-                <p className="text-sm text-muted-foreground mb-1">إجمالي الزيارات (30 يوم)</p>
+                <p className="text-sm text-muted-foreground mb-1">إجمالي (30 يوم)</p>
                 <p className="text-4xl font-black text-primary">{totalVisits}</p>
               </div>
             </div>
@@ -474,6 +638,38 @@ const Admin = () => {
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          {/* Texts Tab */}
+          <TabsContent value="texts" className="space-y-6">
+            <h2 className="text-2xl font-bold">إدارة النصوص</h2>
+            <p className="text-muted-foreground">تحكم في كل النصوص المكتوبة في الموقع</p>
+            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5 max-w-2xl">
+              {siteTexts?.map((t: any) => (
+                <div key={t.id} className="space-y-1.5">
+                  <Label className="text-sm">
+                    {t.description || t.text_key}
+                    <span className="text-xs text-muted-foreground mr-2">({t.text_key})</span>
+                  </Label>
+                  {(textsEdits[t.text_key] || "").length > 60 ? (
+                    <Textarea
+                      value={textsEdits[t.text_key] || ""}
+                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
+                      className="bg-secondary border-border" rows={3}
+                    />
+                  ) : (
+                    <Input
+                      value={textsEdits[t.text_key] || ""}
+                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
+                      className="bg-secondary border-border"
+                    />
+                  )}
+                </div>
+              ))}
+              <Button onClick={handleSaveTexts} className="gradient-primary text-primary-foreground font-bold" disabled={savingTexts}>
+                {savingTexts ? "جاري الحفظ..." : "حفظ النصوص"}
+              </Button>
+            </div>
           </TabsContent>
 
           {/* Security Tab */}
@@ -496,7 +692,7 @@ const Admin = () => {
                       toast({ title: "كلمة المرور غير متطابقة", variant: "destructive" }); return;
                     }
                     if (newPassword.length < 6) {
-                      toast({ title: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" }); return;
+                      toast({ title: "يجب أن تكون 6 أحرف على الأقل", variant: "destructive" }); return;
                     }
                     setChangingPassword(true);
                     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -504,49 +700,15 @@ const Admin = () => {
                     if (error) {
                       toast({ title: "خطأ", description: error.message, variant: "destructive" });
                     } else {
-                      toast({ title: "تم تغيير كلمة المرور بنجاح" });
+                      toast({ title: "تم تغيير كلمة المرور" });
                       setNewPassword(""); setConfirmPassword("");
                     }
                   }}
-                  className="gradient-primary text-primary-foreground font-bold"
-                  disabled={changingPassword}
+                  className="gradient-primary text-primary-foreground font-bold" disabled={changingPassword}
                 >
                   {changingPassword ? "جاري التغيير..." : "تغيير كلمة المرور"}
                 </Button>
               </div>
-            </div>
-          </TabsContent>
-
-          {/* Texts Tab */}
-          <TabsContent value="texts" className="space-y-6">
-            <h2 className="text-2xl font-bold">إدارة النصوص</h2>
-            <p className="text-muted-foreground">تحكم في كل النصوص المكتوبة في الموقع من هنا</p>
-            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5 max-w-2xl">
-              {siteTexts?.map((t: any) => (
-                <div key={t.id} className="space-y-1.5">
-                  <Label className="text-sm">
-                    {t.description || t.text_key}
-                    <span className="text-xs text-muted-foreground mr-2">({t.text_key})</span>
-                  </Label>
-                  {(textsEdits[t.text_key] || "").length > 60 ? (
-                    <Textarea
-                      value={textsEdits[t.text_key] || ""}
-                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
-                      className="bg-secondary border-border"
-                      rows={3}
-                    />
-                  ) : (
-                    <Input
-                      value={textsEdits[t.text_key] || ""}
-                      onChange={(e) => setTextsEdits((prev) => ({ ...prev, [t.text_key]: e.target.value }))}
-                      className="bg-secondary border-border"
-                    />
-                  )}
-                </div>
-              ))}
-              <Button onClick={handleSaveTexts} className="gradient-primary text-primary-foreground font-bold" disabled={savingTexts}>
-                {savingTexts ? "جاري الحفظ..." : "حفظ النصوص"}
-              </Button>
             </div>
           </TabsContent>
         </Tabs>
@@ -604,11 +766,23 @@ const Admin = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>صورة المنتج</Label>
+              <Label>الصورة الرئيسية</Label>
               {editingProduct?.image_url && !pImageFile && (
-                <img src={editingProduct.image_url} alt="" className="h-24 rounded-md object-cover mb-2" />
+                <img src={editingProduct.image_url} alt="" className="h-20 rounded-md object-cover mb-2" />
               )}
               <Input type="file" accept="image/*" onChange={(e) => setPImageFile(e.target.files?.[0] || null)} className="bg-secondary border-border" />
+            </div>
+            <div className="space-y-2">
+              <Label>صور إضافية (معرض الصور)</Label>
+              {editingProduct?.images && editingProduct.images.length > 0 && (
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {editingProduct.images.map((img, i) => (
+                    <img key={i} src={img} alt="" className="h-16 w-16 rounded-md object-cover border border-border/30" />
+                  ))}
+                </div>
+              )}
+              <Input type="file" accept="image/*" multiple onChange={(e) => setPGalleryFiles(e.target.files)} className="bg-secondary border-border" />
+              <p className="text-xs text-muted-foreground">يمكنك اختيار أكتر من صورة</p>
             </div>
             <div className="flex items-center gap-3">
               <Switch checked={pAvailable} onCheckedChange={setPAvailable} />
@@ -620,6 +794,43 @@ const Admin = () => {
             </div>
             <Button onClick={handleSaveProduct} className="w-full gradient-primary text-primary-foreground font-bold" disabled={savingProduct}>
               {savingProduct ? "جاري الحفظ..." : editingProduct ? "حفظ التعديلات" : "إضافة المنتج"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feature Dialog */}
+      <Dialog open={featureDialogOpen} onOpenChange={setFeatureDialogOpen}>
+        <DialogContent className="max-w-md gradient-card border-border/50" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{editingFeature ? "تعديل الميزة" : "إضافة ميزة"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>العنوان</Label>
+              <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} className="bg-secondary border-border" />
+            </div>
+            <div className="space-y-2">
+              <Label>الوصف</Label>
+              <Textarea value={fDescription} onChange={(e) => setFDescription(e.target.value)} className="bg-secondary border-border" rows={2} />
+            </div>
+            <div className="space-y-2">
+              <Label>الأيقونة</Label>
+              <Select value={fIconName} onValueChange={setFIconName}>
+                <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {iconOptions.map((ic) => (
+                    <SelectItem key={ic} value={ic}>{ic}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch checked={fActive} onCheckedChange={setFActive} />
+              <Label>{fActive ? "مفعّل" : "معطّل"}</Label>
+            </div>
+            <Button onClick={handleSaveFeature} className="w-full gradient-primary text-primary-foreground font-bold" disabled={savingFeature}>
+              {savingFeature ? "جاري الحفظ..." : "حفظ"}
             </Button>
           </div>
         </DialogContent>
