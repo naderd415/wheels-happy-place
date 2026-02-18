@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
+import ProductsCarousel from "@/components/ProductsCarousel";
 import HeroProductSection from "@/components/HeroProductSection";
 import ProductsGrid from "@/components/ProductsGrid";
 import FeaturesSection from "@/components/FeaturesSection";
@@ -34,6 +35,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <HeroSection />
+      <ProductsCarousel />
       <HeroProductSection />
       {isLoading && products.length === 0 ? (
         <div className="py-20 flex justify-center">
