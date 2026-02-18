@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,33 +22,44 @@ const AdminLogin = () => {
 
   useEffect(() => {
     const checkExistingAdmin = async () => {
-      // Check if admin exists by looking at site_settings for admin_email
-      const { data: settings } = await supabase
-        .from("site_settings")
-        .select("admin_email")
-        .limit(1)
-        .single();
-
-      const email = (settings as any)?.admin_email;
-      if (email) {
-        setAdminEmail(email);
-        setIsSetup(false);
-      } else {
-        // Double check user_roles
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("id")
-          .eq("role", "admin")
-          .limit(1);
-        
-        if (roles && roles.length > 0) {
-          // Admin exists but email not stored - they need to contact support
-          setAdminEmail(null);
-          setIsSetup(false);
-        } else {
-          setIsSetup(true);
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/site_settings?select=admin_email&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+              Accept: "application/vnd.pgrst.object+json",
+            },
+          }
+        );
+        if (res.ok) {
+          const settings = await res.json();
+          const email = settings?.admin_email;
+          if (email) {
+            setAdminEmail(email);
+            setIsSetup(false);
+          } else {
+            // Check user_roles
+            const rolesRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/user_roles?select=id&role=eq.admin&limit=1`,
+              {
+                headers: {
+                  apikey: SUPABASE_KEY,
+                  Authorization: `Bearer ${SUPABASE_KEY}`,
+                },
+              }
+            );
+            const roles = rolesRes.ok ? await rolesRes.json() : [];
+            if (roles && roles.length > 0) {
+              setAdminEmail(null);
+              setIsSetup(false);
+            } else {
+              setIsSetup(true);
+            }
+          }
         }
-      }
+      } catch {}
       setCheckingAdmin(false);
     };
     checkExistingAdmin();
@@ -64,9 +77,17 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("setup-admin", {
-        body: { password },
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/setup-admin`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
       });
+      const data = await res.json();
+      const error = res.ok ? null : data;
 
       if (error || data?.error) {
         toast({

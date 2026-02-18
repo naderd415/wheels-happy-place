@@ -1,6 +1,18 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from "react";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+type User = {
+  id: string;
+  email?: string;
+};
+
+type Session = {
+  access_token: string;
+  refresh_token: string;
+  user: User;
+};
 
 type AuthContextType = {
   user: User | null;
@@ -13,66 +25,167 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function fetchAuth(endpoint: string, body?: any, accessToken?: string) {
+  const headers: Record<string, string> = {
+    apikey: SUPABASE_KEY,
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
+    method: body ? "POST" : "GET",
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
+}
+
+async function checkAdminRole(userId: string, accessToken: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/has_role`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ _user_id: userId, _role: "admin" }),
+      }
+    );
+    if (!res.ok) return false;
+    return await res.json();
+  } catch {
+    return false;
+  }
+}
+
+const SESSION_KEY = "olex-auth-session";
+
+function saveSession(session: Session | null) {
+  if (session) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+function loadSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase.rpc("has_role", {
-      _user_id: userId,
-      _role: "admin",
-    });
-    setIsAdmin(!!data);
-  };
-
-  useEffect(() => {
-    // Safety timeout - never stay loading forever
-    const timeout = setTimeout(() => {
+  const restoreSession = useCallback(async () => {
+    const saved = loadSession();
+    if (!saved) {
       setLoading(false);
-    }, 3000);
+      return;
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        clearTimeout(timeout);
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await checkAdmin(session.user.id);
-        } else {
-          setIsAdmin(false);
+    try {
+      // Verify the session is still valid by getting user
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${saved.access_token}`,
+        },
+      });
+
+      if (res.ok) {
+        const userData = await res.json();
+        const validSession = { ...saved, user: { id: userData.id, email: userData.email } };
+        setSession(validSession);
+        setUser(validSession.user);
+        saveSession(validSession);
+        const admin = await checkAdminRole(validSession.user.id, validSession.access_token);
+        setIsAdmin(admin);
+      } else {
+        // Try refresh
+        try {
+          const refreshData = await fetchAuth("token?grant_type=refresh_token", {
+            refresh_token: saved.refresh_token,
+          });
+          const newSession: Session = {
+            access_token: refreshData.access_token,
+            refresh_token: refreshData.refresh_token,
+            user: { id: refreshData.user.id, email: refreshData.user.email },
+          };
+          setSession(newSession);
+          setUser(newSession.user);
+          saveSession(newSession);
+          const admin = await checkAdminRole(newSession.user.id, newSession.access_token);
+          setIsAdmin(admin);
+        } catch {
+          // Session expired
+          saveSession(null);
         }
-        setLoading(false);
       }
-    );
+    } catch {
+      saveSession(null);
+    }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(timeout);
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkAdmin(session.user.id);
-      }
-      setLoading(false);
-    }).catch(() => {
-      clearTimeout(timeout);
-      setLoading(false);
-    });
-
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    // Safety timeout
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    restoreSession().finally(() => clearTimeout(timeout));
+    return () => clearTimeout(timeout);
+  }, [restoreSession]);
+
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    try {
+      const data = await fetchAuth("token?grant_type=password", { email, password });
+      const newSession: Session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user: { id: data.user.id, email: data.user.email },
+      };
+      setSession(newSession);
+      setUser(newSession.user);
+      saveSession(newSession);
+      const admin = await checkAdminRole(newSession.user.id, newSession.access_token);
+      setIsAdmin(admin);
+      return { error: null };
+    } catch (error: any) {
+      return { error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    if (session?.access_token) {
+      try {
+        await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+      } catch {}
+    }
+    setSession(null);
+    setUser(null);
+    setIsAdmin(false);
+    saveSession(null);
   };
 
   return (
