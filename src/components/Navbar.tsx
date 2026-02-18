@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Menu, X, Phone } from "lucide-react";
+import { Menu, X, Phone, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useSiteTexts } from "@/hooks/useSiteTexts";
@@ -11,6 +11,24 @@ const Navbar = () => {
   const { data: settings } = useSiteSettings();
   const { data: categories } = useCategories();
   const { data: t } = useSiteTexts();
+
+  const [visitorTheme, setVisitorTheme] = useState<"light" | "dark" | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("visitor-theme");
+    if (saved === "light" || saved === "dark") setVisitorTheme(saved);
+  }, []);
+
+  const toggleTheme = () => {
+    const current = visitorTheme || ((settings as any)?.theme_mode || "dark");
+    const next = current === "dark" ? "light" : "dark";
+    setVisitorTheme(next);
+    localStorage.setItem("visitor-theme", next);
+    // Dispatch event so ThemeProvider picks it up
+    window.dispatchEvent(new CustomEvent("visitor-theme-change", { detail: next }));
+  };
+
+  const isDark = (visitorTheme || (settings as any)?.theme_mode || "dark") === "dark";
 
   return (
     <nav className="sticky top-0 z-50 glass">
@@ -42,6 +60,9 @@ const Navbar = () => {
                 {settings.phone}
               </a>
             )}
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-foreground/80 hover:text-primary">
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
           </div>
 
           <Button variant="ghost" size="icon" className="md:hidden text-foreground" onClick={() => setIsOpen(!isOpen)}>

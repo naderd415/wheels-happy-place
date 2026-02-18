@@ -1,14 +1,30 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { data: settings } = useSiteSettings();
-  const themeMode = (settings as any)?.theme_mode || "dark";
+  const adminTheme = (settings as any)?.theme_mode || "dark";
   const siteType = (settings as any)?.site_type || "both";
   const isElectric = siteType === "electric";
 
+  const [visitorTheme, setVisitorTheme] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("visitor-theme");
+    if (saved === "light" || saved === "dark") setVisitorTheme(saved);
+
+    const handler = (e: Event) => {
+      setVisitorTheme((e as CustomEvent).detail);
+    };
+    window.addEventListener("visitor-theme-change", handler);
+    return () => window.removeEventListener("visitor-theme-change", handler);
+  }, []);
+
+  const activeTheme = visitorTheme || adminTheme;
+  const isLight = activeTheme === "light";
+
   return (
-    <div className={`${themeMode === "light" ? "light-theme" : ""} ${isElectric ? "electric-theme" : ""}`}>
+    <div className={`${isLight ? "light-theme" : ""} ${isElectric ? "electric-theme" : ""}`}>
       {children}
       {isElectric && (
         <style>{`
