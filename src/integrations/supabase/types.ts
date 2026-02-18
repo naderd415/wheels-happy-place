@@ -38,6 +38,39 @@ export type Database = {
         }
         Relationships: []
       }
+      homepage_sections: {
+        Row: {
+          created_at: string
+          filter_type: string
+          id: string
+          is_active: boolean
+          section_type: string
+          slug: string
+          sort_order: number | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          filter_type?: string
+          id?: string
+          is_active?: boolean
+          section_type?: string
+          slug: string
+          sort_order?: number | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          filter_type?: string
+          id?: string
+          is_active?: boolean
+          section_type?: string
+          slug?: string
+          sort_order?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category_id: string | null
@@ -50,6 +83,7 @@ export type Database = {
           name: string
           original_price: number | null
           price: number
+          show_in_slider: boolean
           sort_order: number | null
           specs: Json | null
           tier: string | null
@@ -66,6 +100,7 @@ export type Database = {
           name: string
           original_price?: number | null
           price?: number
+          show_in_slider?: boolean
           sort_order?: number | null
           specs?: Json | null
           tier?: string | null
@@ -82,6 +117,7 @@ export type Database = {
           name?: string
           original_price?: number | null
           price?: number
+          show_in_slider?: boolean
           sort_order?: number | null
           specs?: Json | null
           tier?: string | null

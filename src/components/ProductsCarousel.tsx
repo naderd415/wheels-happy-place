@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 
 const ProductsCarousel = () => {
   const { data: products = [] } = useProducts();
-  const available = products.filter((p: any) => p.is_available).slice(0, 12);
+  const available = products.filter((p: any) => p.show_in_slider && p.is_available).slice(0, 20);
 
   if (!available.length) return null;
 

@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Type, Star, Sun, Moon } from "lucide-react";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Type, Star, Sun, Moon, LayoutGrid } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import type { Tables } from "@/integrations/supabase/types";
@@ -56,6 +56,18 @@ const Admin = () => {
     queryKey: ["admin-site-features"],
     queryFn: async () => {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/site_features?select=*&order=sort_order.asc`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // Homepage sections
+  const { data: homepageSections, refetch: refetchSections } = useQuery({
+    queryKey: ["admin-homepage-sections"],
+    queryFn: async () => {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/homepage_sections?select=*&order=sort_order.asc`, {
         headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
       });
       if (!res.ok) return [];
@@ -399,6 +411,9 @@ const Admin = () => {
             <TabsTrigger value="features" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Star className="h-4 w-4" /> المميزات
             </TabsTrigger>
+            <TabsTrigger value="sections" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <LayoutGrid className="h-4 w-4" /> الأقسام
+            </TabsTrigger>
             <TabsTrigger value="stats" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> الإحصائيات
             </TabsTrigger>
@@ -438,6 +453,13 @@ const Admin = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Switch checked={(product as any).show_in_slider} onCheckedChange={async (v) => {
+                        await supabase.from("products").update({ show_in_slider: v } as any).eq("id", product.id);
+                        queryClient.invalidateQueries({ queryKey: ["products"] });
+                      }} />
+                      <span className="text-[10px] text-muted-foreground">سلايدر</span>
+                    </div>
                     <Switch checked={product.is_available} onCheckedChange={() => handleToggleAvailability(product as Product)} />
                     <Button size="icon" variant="ghost" onClick={() => openEditProduct(product as Product)}>
                       <Pencil className="h-4 w-4" />
@@ -609,6 +631,74 @@ const Admin = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          {/* Sections Tab */}
+          <TabsContent value="sections" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">أقسام الصفحة الرئيسية</h2>
+                <p className="text-sm text-muted-foreground">تحكم في الأقسام المعروضة: أحدث المنتجات، عروض وخصومات، إلخ</p>
+              </div>
+            </div>
+            <div className="grid gap-4 max-w-2xl">
+              {homepageSections?.map((s: any) => {
+                const filterLabels: Record<string, string> = { latest: "أحدث المنتجات", discounted: "عليه خصم", newest: "جاء حديثاً", all: "الكل" };
+                return (
+                  <div key={s.id} className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold">{s.title}</h3>
+                      <p className="text-sm text-muted-foreground">النوع: {filterLabels[s.filter_type] || s.filter_type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Switch checked={s.is_active} onCheckedChange={async (v) => {
+                        await supabase.from("homepage_sections" as any).update({ is_active: v } as any).eq("id", s.id);
+                        refetchSections();
+                        queryClient.invalidateQueries({ queryKey: ["homepage-sections"] });
+                      }} />
+                      <Button size="icon" variant="ghost" className="text-destructive" onClick={async () => {
+                        await supabase.from("homepage_sections" as any).delete().eq("id", s.id);
+                        refetchSections();
+                        queryClient.invalidateQueries({ queryKey: ["homepage-sections"] });
+                        toast({ title: "تم الحذف" });
+                      }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-4 max-w-md">
+              <h3 className="font-bold">إضافة قسم جديد</h3>
+              <div className="space-y-3">
+                <Input id="new-section-title" placeholder="اسم القسم" className="bg-secondary border-border" />
+                <Select defaultValue="latest">
+                  <SelectTrigger id="new-section-filter" className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">أحدث المنتجات</SelectItem>
+                    <SelectItem value="discounted">عروض وخصومات</SelectItem>
+                    <SelectItem value="newest">جاء حديثاً</SelectItem>
+                    <SelectItem value="all">كل المنتجات</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button className="gradient-primary text-primary-foreground gap-2" onClick={async () => {
+                  const titleInput = document.getElementById("new-section-title") as HTMLInputElement;
+                  const title = titleInput?.value;
+                  if (!title) { toast({ title: "أدخل اسم القسم", variant: "destructive" }); return; }
+                  const slug = `section-${Date.now()}`;
+                  await supabase.from("homepage_sections" as any).insert({
+                    title, slug, section_type: "auto", filter_type: "latest", sort_order: (homepageSections?.length || 0) + 1,
+                  } as any);
+                  if (titleInput) titleInput.value = "";
+                  refetchSections();
+                  queryClient.invalidateQueries({ queryKey: ["homepage-sections"] });
+                  toast({ title: "تم إضافة القسم" });
+                }}>
+                  <Plus className="h-4 w-4" /> إضافة
+                </Button>
+              </div>
             </div>
           </TabsContent>
 
