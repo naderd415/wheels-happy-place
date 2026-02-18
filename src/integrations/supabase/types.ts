@@ -97,19 +97,56 @@ export type Database = {
           },
         ]
       }
+      site_features: {
+        Row: {
+          category_slug: string | null
+          created_at: string
+          description: string
+          icon_name: string
+          id: string
+          is_active: boolean
+          sort_order: number | null
+          title: string
+        }
+        Insert: {
+          category_slug?: string | null
+          created_at?: string
+          description?: string
+          icon_name?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number | null
+          title: string
+        }
+        Update: {
+          category_slug?: string | null
+          created_at?: string
+          description?: string
+          icon_name?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           address: string | null
           admin_email: string | null
           facebook_url: string | null
           google_drive_url: string | null
+          hero_image_url: string | null
           hero_product_id: string | null
           id: string
           location_url: string | null
           logo_url: string | null
           phone: string | null
+          phone2: string | null
+          phone3: string | null
           site_name: string
           site_type: string
+          theme_mode: string
           updated_at: string
           whatsapp: string | null
         }
@@ -118,13 +155,17 @@ export type Database = {
           admin_email?: string | null
           facebook_url?: string | null
           google_drive_url?: string | null
+          hero_image_url?: string | null
           hero_product_id?: string | null
           id?: string
           location_url?: string | null
           logo_url?: string | null
           phone?: string | null
+          phone2?: string | null
+          phone3?: string | null
           site_name?: string
           site_type?: string
+          theme_mode?: string
           updated_at?: string
           whatsapp?: string | null
         }
@@ -133,13 +174,17 @@ export type Database = {
           admin_email?: string | null
           facebook_url?: string | null
           google_drive_url?: string | null
+          hero_image_url?: string | null
           hero_product_id?: string | null
           id?: string
           location_url?: string | null
           logo_url?: string | null
           phone?: string | null
+          phone2?: string | null
+          phone3?: string | null
           site_name?: string
           site_type?: string
+          theme_mode?: string
           updated_at?: string
           whatsapp?: string | null
         }

@@ -62,6 +62,11 @@ const Navbar = () => {
             <Link to="/shop" onClick={() => setIsOpen(false)} className="block py-2 text-foreground/80 hover:text-primary font-medium">
               {t?.nav_shop || "المعرض"}
             </Link>
+            {settings?.phone && (
+              <a href={`tel:${settings.phone}`} className="block py-2 text-primary font-semibold">
+                <Phone className="h-4 w-4 inline ml-2" />{settings.phone}
+              </a>
+            )}
           </div>
         )}
       </div>

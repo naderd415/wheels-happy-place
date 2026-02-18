@@ -14,6 +14,12 @@ const Footer = () => {
     .replace("{year}", String(new Date().getFullYear()))
     .replace("{site_name}", settings?.site_name || t?.site_name_display || "أوليكس موتورز");
 
+  const phones = [
+    settings?.phone,
+    (settings as any)?.phone2,
+    (settings as any)?.phone3,
+  ].filter(Boolean);
+
   return (
     <footer className="border-t border-border/50 mt-auto">
       <div className="container mx-auto px-4 py-14">
@@ -46,11 +52,11 @@ const Footer = () => {
             <div>
               <h4 className="font-bold text-lg mb-4">{t?.footer_contact_title || "تواصل معنا"}</h4>
               <div className="space-y-3 text-muted-foreground">
-                {settings?.phone && (
-                  <a href={`tel:${settings.phone}`} className="flex items-center gap-3 hover:text-primary transition-colors">
-                    <Phone className="h-4 w-4 text-primary" /> {settings.phone}
+                {phones.map((p, i) => (
+                  <a key={i} href={`tel:${p}`} className="flex items-center gap-3 hover:text-primary transition-colors">
+                    <Phone className="h-4 w-4 text-primary" /> {p}
                   </a>
-                )}
+                ))}
                 {settings?.address && (
                   <div className="flex items-center gap-3">
                     <MapPin className="h-4 w-4 text-primary" /> {settings.address}

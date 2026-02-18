@@ -1,11 +1,15 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import heroImage from "@/assets/hero-motorcycle.jpg";
+import defaultHeroImage from "@/assets/hero-motorcycle.jpg";
 import AnimateOnScroll from "./AnimateOnScroll";
 import { useSiteTexts } from "@/hooks/useSiteTexts";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const HeroSection = () => {
   const { data: t } = useSiteTexts();
+  const { data: settings } = useSiteSettings();
+
+  const heroImage = (settings as any)?.hero_image_url || defaultHeroImage;
 
   return (
     <section className="relative min-h-[80vh] flex items-center overflow-hidden">
