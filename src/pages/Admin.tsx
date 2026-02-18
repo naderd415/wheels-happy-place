@@ -411,6 +411,9 @@ const Admin = () => {
             <TabsTrigger value="features" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Star className="h-4 w-4" /> المميزات
             </TabsTrigger>
+            <TabsTrigger value="slider" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Image className="h-4 w-4" /> السلايدر
+            </TabsTrigger>
             <TabsTrigger value="sections" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <LayoutGrid className="h-4 w-4" /> الأقسام
             </TabsTrigger>
@@ -628,6 +631,53 @@ const Admin = () => {
                     <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteFeature(f.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Slider Tab */}
+          <TabsContent value="slider" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">إدارة السلايدر</h2>
+                <p className="text-sm text-muted-foreground">اختر المنتجات اللي تظهر في السلايدر أعلى الصفحة الرئيسية</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">تشغيل السلايدر</span>
+                <Switch
+                  checked={!((settings as any)?.slider_disabled)}
+                  onCheckedChange={async (v) => {
+                    if (!settings) return;
+                    await supabase.from("site_settings").update({ slider_disabled: !v } as any).eq("id", settings.id);
+                    queryClient.invalidateQueries({ queryKey: ["site-settings"] });
+                    toast({ title: v ? "تم تشغيل السلايدر" : "تم إيقاف السلايدر" });
+                  }}
+                />
+              </div>
+            </div>
+            <div className="grid gap-3">
+              {products?.map((product) => (
+                <div key={product.id} className="gradient-card rounded-lg border border-border/50 p-3 flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-secondary">
+                    {product.image_url ? (
+                      <img src={product.image_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><Image className="h-4 w-4 text-muted-foreground" /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-sm truncate">{product.name}</h3>
+                    <p className="text-xs text-muted-foreground">{product.price.toLocaleString("ar-EG")} ج.م</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-muted-foreground">{(product as any).show_in_slider ? "في السلايدر" : "مخفي"}</span>
+                    <Switch checked={(product as any).show_in_slider} onCheckedChange={async (v) => {
+                      await supabase.from("products").update({ show_in_slider: v } as any).eq("id", product.id);
+                      queryClient.invalidateQueries({ queryKey: ["products"] });
+                      toast({ title: v ? "تمت الإضافة للسلايدر" : "تمت الإزالة من السلايدر" });
+                    }} />
                   </div>
                 </div>
               ))}
