@@ -5,11 +5,13 @@ import FeaturesSection from "@/components/FeaturesSection";
 import Footer from "@/components/Footer";
 import { useProducts } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { useSiteTexts } from "@/hooks/useSiteTexts";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 
 const Index = () => {
   const { data: products = [], isLoading } = useProducts();
   const { data: settings } = useSiteSettings();
+  const { data: texts } = useSiteTexts();
   useVisitorTracking();
 
   // Filter products based on site_type setting
@@ -40,7 +42,7 @@ const Index = () => {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <ProductsGrid products={filteredProducts} title="أحدث المنتجات" />
+        <ProductsGrid products={filteredProducts} title={texts?.products_section_title || "أحدث المنتجات"} />
       )}
       <FeaturesSection />
       <Footer />
