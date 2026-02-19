@@ -3,11 +3,15 @@ import { ArrowRight, Check, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useProduct } from "@/hooks/useProducts";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Badge } from "@/components/ui/badge";
+import InstallmentCalculator from "@/components/InstallmentCalculator";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { data: product, isLoading } = useProduct(id!);
+  const { data: settings } = useSiteSettings();
+  const installmentEnabled = (settings as any)?.installment_enabled;
 
   if (isLoading) {
     return (
@@ -85,6 +89,11 @@ const ProductDetail = () => {
                 <h3 className="font-bold text-lg mb-2">الوصف</h3>
                 <p className="text-muted-foreground leading-relaxed">{product.description}</p>
               </div>
+            )}
+
+            {/* Installment Calculator */}
+            {installmentEnabled && product.price > 0 && (
+              <InstallmentCalculator price={product.price} />
             )}
 
             {specs && Object.keys(specs).length > 0 && (

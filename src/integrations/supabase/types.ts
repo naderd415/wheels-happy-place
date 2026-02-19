@@ -175,6 +175,7 @@ export type Database = {
           hero_image_url: string | null
           hero_product_id: string | null
           id: string
+          installment_enabled: boolean
           location_url: string | null
           logo_url: string | null
           phone: string | null
@@ -195,6 +196,7 @@ export type Database = {
           hero_image_url?: string | null
           hero_product_id?: string | null
           id?: string
+          installment_enabled?: boolean
           location_url?: string | null
           logo_url?: string | null
           phone?: string | null
@@ -215,6 +217,7 @@ export type Database = {
           hero_image_url?: string | null
           hero_product_id?: string | null
           id?: string
+          installment_enabled?: boolean
           location_url?: string | null
           logo_url?: string | null
           phone?: string | null

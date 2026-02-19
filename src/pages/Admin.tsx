@@ -12,9 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Type, Star, Sun, Moon, LayoutGrid } from "lucide-react";
+import { Settings, Package, LogOut, Plus, Pencil, Trash2, Image, KeyRound, BarChart3, Type, Star, LayoutGrid, Tags, Calculator } from "lucide-react";
 import { useProducts, useCategories } from "@/hooks/useProducts";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
@@ -28,7 +29,7 @@ const Admin = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: products } = useProducts();
-  const { data: categories } = useCategories();
+  const { data: categories, refetch: refetchCategories } = useCategories();
   const { data: settings } = useSiteSettings();
 
   // Visitor stats
@@ -113,6 +114,7 @@ const Admin = () => {
   const [siteType, setSiteType] = useState("both");
   const [themeMode, setThemeMode] = useState("dark");
   const [heroProductId, setHeroProductId] = useState("none");
+  const [installmentEnabled, setInstallmentEnabled] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [heroImageFile, setHeroImageFile] = useState<File | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -146,6 +148,13 @@ const Admin = () => {
   const [fActive, setFActive] = useState(true);
   const [savingFeature, setSavingFeature] = useState(false);
 
+  // Category dialog state
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState<any>(null);
+  const [catName, setCatName] = useState("");
+  const [catSlug, setCatSlug] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
+
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
       navigate("/admin/login");
@@ -166,6 +175,7 @@ const Admin = () => {
       setSiteType((settings as any).site_type || "both");
       setThemeMode((settings as any).theme_mode || "dark");
       setHeroProductId((settings as any).hero_product_id || "none");
+      setInstallmentEnabled((settings as any).installment_enabled || false);
     }
   }, [settings]);
 
@@ -208,6 +218,7 @@ const Admin = () => {
       hero_image_url: heroImageUrl,
       phone2: phone2 || null,
       phone3: phone3 || null,
+      installment_enabled: installmentEnabled,
     } as any).eq("id", settings.id);
 
     setSavingSettings(false);
@@ -268,7 +279,6 @@ const Admin = () => {
       }
     }
 
-    // Upload gallery images
     if (pGalleryFiles && pGalleryFiles.length > 0) {
       const newUrls: string[] = [];
       for (let i = 0; i < pGalleryFiles.length; i++) {
@@ -374,15 +384,65 @@ const Admin = () => {
     toast({ title: "تم الحذف" });
   };
 
+  // Category CRUD
+  const openAddCategory = () => {
+    setEditingCat(null);
+    setCatName(""); setCatSlug("");
+    setCatDialogOpen(true);
+  };
+
+  const openEditCategory = (cat: any) => {
+    setEditingCat(cat);
+    setCatName(cat.name);
+    setCatSlug(cat.slug);
+    setCatDialogOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!catName || !catSlug) {
+      toast({ title: "يرجى ملء جميع الحقول", variant: "destructive" });
+      return;
+    }
+    setSavingCat(true);
+    const data: any = { name: catName, slug: catSlug };
+
+    if (editingCat) {
+      await supabase.from("categories").update(data).eq("id", editingCat.id);
+    } else {
+      await supabase.from("categories").insert(data);
+    }
+
+    setSavingCat(false);
+    setCatDialogOpen(false);
+    refetchCategories();
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
+    toast({ title: "تم الحفظ" });
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    await supabase.from("categories").delete().eq("id", id);
+    refetchCategories();
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
+    toast({ title: "تم الحذف" });
+  };
+
   const totalVisits = stats?.reduce((sum, s) => sum + (s as any).visits, 0) || 0;
   const todayVisits = stats?.find((s) => (s as any).date === new Date().toISOString().split("T")[0]);
+
+  // Chart data: last 14 days reversed for chronological order
+  const chartData = stats
+    ? [...stats].slice(0, 14).reverse().map((s: any) => ({
+        date: s.date.slice(5), // MM-DD
+        زيارات: s.visits,
+        زوار: s.unique_visitors,
+      }))
+    : [];
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">جاري التحميل...</div>;
   }
 
   const tierLabel = (t: string) => t === "economic" ? "اقتصادي" : t === "sport" ? "سبورت" : "متوسط";
-
   const iconOptions = ["Truck", "CreditCard", "Wrench", "Headphones", "ShieldCheck", "BadgePercent", "Leaf", "Star", "Zap"];
 
   return (
@@ -399,38 +459,43 @@ const Admin = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="products" dir="rtl">
-          <TabsList className="mb-8 bg-secondary flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="products" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Package className="h-4 w-4" /> المنتجات
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Settings className="h-4 w-4" /> الإعدادات
-            </TabsTrigger>
-            <TabsTrigger value="features" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Star className="h-4 w-4" /> المميزات
-            </TabsTrigger>
-            <TabsTrigger value="slider" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Image className="h-4 w-4" /> السلايدر
-            </TabsTrigger>
-            <TabsTrigger value="sections" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <LayoutGrid className="h-4 w-4" /> الأقسام
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <BarChart3 className="h-4 w-4" /> الإحصائيات
-            </TabsTrigger>
-            <TabsTrigger value="texts" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Type className="h-4 w-4" /> النصوص
-            </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <KeyRound className="h-4 w-4" /> الأمان
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-4 px-4 mb-6">
+            <TabsList className="bg-secondary inline-flex gap-1 p-1 min-w-max">
+              <TabsTrigger value="products" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Package className="h-4 w-4" /> <span className="hidden sm:inline">المنتجات</span>
+              </TabsTrigger>
+              <TabsTrigger value="categories" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Tags className="h-4 w-4" /> <span className="hidden sm:inline">الفئات</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Settings className="h-4 w-4" /> <span className="hidden sm:inline">الإعدادات</span>
+              </TabsTrigger>
+              <TabsTrigger value="slider" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Image className="h-4 w-4" /> <span className="hidden sm:inline">السلايدر</span>
+              </TabsTrigger>
+              <TabsTrigger value="sections" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">الأقسام</span>
+              </TabsTrigger>
+              <TabsTrigger value="features" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Star className="h-4 w-4" /> <span className="hidden sm:inline">المميزات</span>
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <BarChart3 className="h-4 w-4" /> <span className="hidden sm:inline">الإحصائيات</span>
+              </TabsTrigger>
+              <TabsTrigger value="texts" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Type className="h-4 w-4" /> <span className="hidden sm:inline">النصوص</span>
+              </TabsTrigger>
+              <TabsTrigger value="security" className="gap-1.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <KeyRound className="h-4 w-4" /> <span className="hidden sm:inline">الأمان</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Products Tab */}
           <TabsContent value="products" className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">إدارة المنتجات</h2>
               <Button onClick={openAddProduct} className="gradient-primary text-primary-foreground gap-2">
                 <Plus className="h-4 w-4" /> إضافة منتج
@@ -438,7 +503,7 @@ const Admin = () => {
             </div>
             <div className="grid gap-4">
               {products?.map((product) => (
-                <div key={product.id} className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4">
+                <div key={product.id} className="gradient-card rounded-lg border border-border/50 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0 bg-secondary">
                     {product.image_url ? (
                       <img src={product.image_url} alt="" className="w-full h-full object-cover" />
@@ -452,10 +517,9 @@ const Admin = () => {
                       {product.price.toLocaleString("ar-EG")} ج.م
                       {(product.categories as any)?.name && ` • ${(product.categories as any).name}`}
                       {` • ${tierLabel((product as any).tier || "mid")}`}
-                      {product.images && product.images.length > 0 && ` • ${product.images.length} صور`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     <div className="flex flex-col items-center gap-0.5">
                       <Switch checked={(product as any).show_in_slider} onCheckedChange={async (v) => {
                         await supabase.from("products").update({ show_in_slider: v } as any).eq("id", product.id);
@@ -475,6 +539,46 @@ const Admin = () => {
               ))}
               {(!products || products.length === 0) && (
                 <div className="text-center py-12 text-muted-foreground">لا توجد منتجات بعد</div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Categories Tab */}
+          <TabsContent value="categories" className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold">إدارة الفئات</h2>
+                <p className="text-sm text-muted-foreground">أضف وعدّل الفئات: اقتصادي، متوسط، سبورت، إلخ</p>
+              </div>
+              <Button onClick={openAddCategory} className="gradient-primary text-primary-foreground gap-2">
+                <Plus className="h-4 w-4" /> إضافة فئة
+              </Button>
+            </div>
+            <div className="grid gap-4 max-w-2xl">
+              {categories?.map((cat) => {
+                const count = products?.filter((p) => p.category_id === cat.id).length || 0;
+                return (
+                  <div key={cat.id} className="gradient-card rounded-lg border border-border/50 p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Tags className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold">{cat.name}</h3>
+                      <p className="text-sm text-muted-foreground">slug: {cat.slug} • {count} منتج</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button size="icon" variant="ghost" onClick={() => openEditCategory(cat)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteCategory(cat.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {(!categories || categories.length === 0) && (
+                <div className="text-center py-12 text-muted-foreground">لا توجد فئات بعد</div>
               )}
             </div>
           </TabsContent>
@@ -503,8 +607,8 @@ const Admin = () => {
                     <Select value={themeMode} onValueChange={setThemeMode}>
                       <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="dark"><span className="flex items-center gap-2"><Moon className="h-4 w-4" /> داكن</span></SelectItem>
-                        <SelectItem value="light"><span className="flex items-center gap-2"><Sun className="h-4 w-4" /> فاتح</span></SelectItem>
+                        <SelectItem value="dark">داكن</SelectItem>
+                        <SelectItem value="light">فاتح</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -531,10 +635,17 @@ const Admin = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border/30">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-primary" />
+                      <Label className="cursor-pointer">حاسبة التقسيط</Label>
+                    </div>
+                    <Switch checked={installmentEnabled} onCheckedChange={setInstallmentEnabled} />
+                  </div>
                 </div>
               </div>
 
-              {/* Hero Image */}
+              {/* Hero Image & Phones */}
               <div className="gradient-card rounded-lg border border-border/50 p-6 space-y-5">
                 <h3 className="font-bold text-lg border-b border-border/30 pb-3">صورة الهيرو الرئيسية</h3>
                 <p className="text-sm text-muted-foreground">الصورة الكبيرة في أعلى الصفحة الرئيسية</p>
@@ -600,7 +711,7 @@ const Admin = () => {
 
           {/* Features Tab */}
           <TabsContent value="features" className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">قسم "لماذا تختارنا"</h2>
                 <p className="text-sm text-muted-foreground">تحكم في المميزات المعروضة في الصفحة الرئيسية</p>
@@ -639,7 +750,7 @@ const Admin = () => {
 
           {/* Slider Tab */}
           <TabsContent value="slider" className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">إدارة السلايدر</h2>
                 <p className="text-sm text-muted-foreground">اختر المنتجات اللي تظهر في السلايدر أعلى الصفحة الرئيسية</p>
@@ -672,7 +783,7 @@ const Admin = () => {
                     <p className="text-xs text-muted-foreground">{product.price.toLocaleString("ar-EG")} ج.م</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground">{(product as any).show_in_slider ? "في السلايدر" : "مخفي"}</span>
+                    <span className="text-xs text-muted-foreground hidden sm:block">{(product as any).show_in_slider ? "في السلايدر" : "مخفي"}</span>
                     <Switch checked={(product as any).show_in_slider} onCheckedChange={async (v) => {
                       await supabase.from("products").update({ show_in_slider: v } as any).eq("id", product.id);
                       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -686,7 +797,7 @@ const Admin = () => {
 
           {/* Sections Tab */}
           <TabsContent value="sections" className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">أقسام الصفحة الرئيسية</h2>
                 <p className="text-sm text-muted-foreground">تحكم في الأقسام المعروضة: أحدث المنتجات، عروض وخصومات، إلخ</p>
@@ -755,16 +866,47 @@ const Admin = () => {
           {/* Stats Tab */}
           <TabsContent value="stats" className="space-y-6">
             <h2 className="text-2xl font-bold">إحصائيات الزوار</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
                 <p className="text-sm text-muted-foreground mb-1">زيارات اليوم</p>
                 <p className="text-4xl font-black text-primary">{(todayVisits as any)?.visits || 0}</p>
+              </div>
+              <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
+                <p className="text-sm text-muted-foreground mb-1">زوار اليوم (فريد)</p>
+                <p className="text-4xl font-black text-accent">{(todayVisits as any)?.unique_visitors || 0}</p>
               </div>
               <div className="gradient-card rounded-lg border border-border/50 p-6 text-center">
                 <p className="text-sm text-muted-foreground mb-1">إجمالي (30 يوم)</p>
                 <p className="text-4xl font-black text-primary">{totalVisits}</p>
               </div>
             </div>
+
+            {/* Bar Chart */}
+            {chartData.length > 0 && (
+              <div className="gradient-card rounded-lg border border-border/50 p-6">
+                <h3 className="font-bold mb-4">الزيارات اليومية (آخر 14 يوم)</h3>
+                <div className="w-full h-72" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Bar dataKey="زيارات" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="زوار" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
             {stats && stats.length > 0 && (
               <div className="gradient-card rounded-lg border border-border/50 p-6 max-w-lg">
                 <h3 className="font-bold mb-4">آخر الأيام</h3>
@@ -772,7 +914,10 @@ const Admin = () => {
                   {stats.slice(0, 10).map((s: any) => (
                     <div key={s.id} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">{s.date}</span>
-                      <span className="font-bold">{s.visits} زيارة</span>
+                      <div className="flex gap-4">
+                        <span className="font-bold">{s.visits} زيارة</span>
+                        <span className="text-muted-foreground">{s.unique_visitors} فريد</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -971,6 +1116,28 @@ const Admin = () => {
             </div>
             <Button onClick={handleSaveFeature} className="w-full gradient-primary text-primary-foreground font-bold" disabled={savingFeature}>
               {savingFeature ? "جاري الحفظ..." : "حفظ"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Dialog */}
+      <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
+        <DialogContent className="max-w-md gradient-card border-border/50" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{editingCat ? "تعديل الفئة" : "إضافة فئة جديدة"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>اسم الفئة</Label>
+              <Input value={catName} onChange={(e) => setCatName(e.target.value)} className="bg-secondary border-border" placeholder="مثال: اقتصادي / شعبي" />
+            </div>
+            <div className="space-y-2">
+              <Label>Slug (معرف فريد بالإنجليزي)</Label>
+              <Input value={catSlug} onChange={(e) => setCatSlug(e.target.value)} className="bg-secondary border-border" dir="ltr" placeholder="economic" />
+            </div>
+            <Button onClick={handleSaveCategory} className="w-full gradient-primary text-primary-foreground font-bold" disabled={savingCat}>
+              {savingCat ? "جاري الحفظ..." : "حفظ"}
             </Button>
           </div>
         </DialogContent>
