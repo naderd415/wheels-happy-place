@@ -182,6 +182,7 @@ export type Database = {
           phone3: string | null
           site_name: string
           site_type: string
+          slider_disabled: boolean
           theme_mode: string
           updated_at: string
           whatsapp: string | null
@@ -201,6 +202,7 @@ export type Database = {
           phone3?: string | null
           site_name?: string
           site_type?: string
+          slider_disabled?: boolean
           theme_mode?: string
           updated_at?: string
           whatsapp?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           phone3?: string | null
           site_name?: string
           site_type?: string
+          slider_disabled?: boolean
           theme_mode?: string
           updated_at?: string
           whatsapp?: string | null

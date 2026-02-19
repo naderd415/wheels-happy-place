@@ -54,6 +54,9 @@ const Navbar = () => {
             <Link to="/shop" className="text-foreground/80 hover:text-primary transition-colors font-medium">
               {t?.nav_shop || "المعرض"}
             </Link>
+            <Link to="/contact" className="text-foreground/80 hover:text-primary transition-colors font-medium">
+              {t?.nav_contact || "اتصل بنا"}
+            </Link>
             {settings?.phone && (
               <a href={`tel:${settings.phone}`} className="flex items-center gap-2 text-primary font-semibold">
                 <Phone className="h-4 w-4" />
@@ -82,6 +85,9 @@ const Navbar = () => {
             ))}
             <Link to="/shop" onClick={() => setIsOpen(false)} className="block py-2 text-foreground/80 hover:text-primary font-medium">
               {t?.nav_shop || "المعرض"}
+            </Link>
+            <Link to="/contact" onClick={() => setIsOpen(false)} className="block py-2 text-foreground/80 hover:text-primary font-medium">
+              {t?.nav_contact || "اتصل بنا"}
             </Link>
             {settings?.phone && (
               <a href={`tel:${settings.phone}`} className="block py-2 text-primary font-semibold">
